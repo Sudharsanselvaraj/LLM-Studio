@@ -1,5 +1,5 @@
 <div align="center">
-  <img src=".github/assets/llmstudio-logo.png" alt="LLMStudio" width="440" />
+  <img src="brand-logo.png" alt="LLMStudio" width="440" />
 </div>
 
 <h3 align="center">See a language model think — real internals, real forward pass, real-time 3D.</h3>

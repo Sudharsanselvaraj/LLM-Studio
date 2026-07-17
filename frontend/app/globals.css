@@ -1,11 +1,11 @@
 :root {
-  --bg: #05060a;
-  --panel: rgba(14, 18, 30, 0.72);
-  --panel-border: rgba(120, 150, 220, 0.22);
-  --text: #dfe7ff;
-  --muted: #8a97bd;
-  --accent: #57d0ff;
-  --accent-2: #b98bff;
+  --bg: #000000;
+  --panel: rgba(16, 16, 18, 0.72);
+  --panel-border: rgba(255, 255, 255, 0.15);
+  --text: #e8e8e8;
+  --muted: #888888;
+  --accent: #ffffff;
+  --accent-2: #b0b0b0;
 }
 
 * {
@@ -112,7 +112,7 @@ main.app-root {
 
 button.primary {
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  color: #06121b;
+  color: #0a0a0a;
   font-weight: 700;
   border: none;
   border-radius: 8px;
@@ -235,8 +235,8 @@ button.primary:disabled {
 .nav-btn.active {
   background: linear-gradient(
     135deg,
-    rgba(87, 208, 255, 0.22),
-    rgba(185, 139, 255, 0.22)
+    rgba(255, 255, 255, 0.22),
+    rgba(255, 255, 255, 0.22)
   );
   border-color: var(--accent);
 }
@@ -350,8 +350,8 @@ code {
   border-color: var(--accent);
   background: linear-gradient(
     135deg,
-    rgba(87, 208, 255, 0.2),
-    rgba(185, 139, 255, 0.2)
+    rgba(255, 255, 255, 0.2),
+    rgba(255, 255, 255, 0.2)
   );
 }
 
@@ -382,7 +382,7 @@ code {
   margin: 0 0 8px;
   font-size: 12.5px;
   line-height: 1.5;
-  color: #c6d0ea;
+  color: #c9c9c9;
 }
 
 /* --- One-time intro ----------------------------------------------------- */
@@ -397,21 +397,21 @@ code {
   gap: 14px;
   background: radial-gradient(
       ellipse at 50% 45%,
-      rgba(20, 26, 48, 0.6),
-      rgba(5, 6, 10, 0.98)
+      rgba(22, 22, 24, 0.6),
+      rgba(0, 0, 0, 0.98)
     ),
-    #05060a;
+    #000000;
 }
 
 .intro-haze {
   position: absolute;
   inset: -20%;
   background:
-    radial-gradient(2px 2px at 20% 30%, rgba(120, 200, 255, 0.7), transparent),
-    radial-gradient(2px 2px at 70% 60%, rgba(185, 139, 255, 0.6), transparent),
-    radial-gradient(1.5px 1.5px at 40% 80%, rgba(120, 200, 255, 0.5), transparent),
+    radial-gradient(2px 2px at 20% 30%, rgba(255, 255, 255, 0.7), transparent),
+    radial-gradient(2px 2px at 70% 60%, rgba(255, 255, 255, 0.6), transparent),
+    radial-gradient(1.5px 1.5px at 40% 80%, rgba(255, 255, 255, 0.5), transparent),
     radial-gradient(1.5px 1.5px at 85% 25%, rgba(255, 255, 255, 0.5), transparent),
-    radial-gradient(1.5px 1.5px at 15% 70%, rgba(150, 210, 255, 0.5), transparent);
+    radial-gradient(1.5px 1.5px at 15% 70%, rgba(255, 255, 255, 0.5), transparent);
   filter: blur(0.4px);
   animation: hazeDrift 8s ease-in-out infinite alternate;
   opacity: 0.7;
@@ -445,7 +445,7 @@ code {
   margin-top: 10px;
   pointer-events: auto;
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  color: #06121b;
+  color: #0a0a0a;
   font-weight: 700;
   border: none;
   border-radius: 9px;
@@ -479,7 +479,7 @@ code {
   gap: 22px;
   padding: 0 16px;
   border-bottom: 1px solid var(--panel-border);
-  background: rgba(8, 10, 16, 0.75);
+  background: rgba(10, 10, 12, 0.75);
 }
 .brand {
   display: flex;
@@ -546,7 +546,7 @@ code {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background: rgba(8, 10, 16, 0.55);
+  background: rgba(10, 10, 12, 0.55);
 }
 .side-title {
   font-size: 10.5px;
@@ -569,7 +569,7 @@ code {
   font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #6a769c;
+  color: #7c7c7c;
 }
 .astat-value {
   font-size: 13px;
@@ -640,7 +640,7 @@ code {
 .dropzone:hover,
 .dropzone.drag {
   border-color: var(--accent);
-  background: rgba(87, 208, 255, 0.06);
+  background: rgba(255, 255, 255, 0.06);
 }
 .drop-icon {
   font-size: 22px;
@@ -697,17 +697,17 @@ code {
   font-family: var(--mono);
   font-size: 11px;
   cursor: pointer;
-  border-bottom: 1px solid rgba(120, 150, 220, 0.07);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 .tensor-row:hover,
 .tensor-row.hover {
-  background: rgba(87, 208, 255, 0.09);
+  background: rgba(255, 255, 255, 0.09);
 }
 .tensor-row.selected {
-  background: rgba(185, 139, 255, 0.16);
+  background: rgba(255, 255, 255, 0.16);
 }
 .tensor-name {
-  color: #b9c4e6;
+  color: #cccccc;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -734,7 +734,7 @@ code {
   font-size: 11px;
   color: var(--muted);
   pointer-events: none;
-  background: rgba(10, 14, 24, 0.5);
+  background: rgba(12, 12, 14, 0.5);
   padding: 4px 10px;
   border-radius: 20px;
 }
@@ -742,7 +742,7 @@ code {
   position: absolute;
   z-index: 20;
   pointer-events: none;
-  background: rgba(10, 14, 24, 0.94);
+  background: rgba(12, 12, 14, 0.94);
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   padding: 8px 11px;
@@ -757,7 +757,7 @@ code {
 .ht-name {
   font-family: var(--mono);
   font-size: 11px;
-  color: #8fa0cc;
+  color: #9a9a9a;
   margin: 2px 0;
 }
 .ht-meta {
@@ -772,7 +772,7 @@ code {
   overflow-y: auto;
   border-left: 1px solid var(--panel-border);
   padding: 14px;
-  background: rgba(8, 10, 16, 0.55);
+  background: rgba(10, 10, 12, 0.55);
 }
 .rp-empty {
   color: var(--muted);
@@ -791,7 +791,7 @@ code {
 .td-name {
   font-family: var(--mono);
   font-size: 12px;
-  color: #b9c4e6;
+  color: #cccccc;
   margin: 4px 0 12px;
   word-break: break-all;
 }
@@ -808,7 +808,7 @@ code {
   font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #6a769c;
+  color: #7c7c7c;
 }
 .td-grid b {
   font-family: var(--mono);
@@ -857,10 +857,10 @@ code {
   padding: 12px 10px;
   margin: 6px 0;
   overflow-x: auto;
-  color: #e9eeff;
+  color: #ededed;
 }
 .formula .katex {
-  color: #e9eeff;
+  color: #ededed;
   font-size: 1.05em;
 }
 
@@ -874,7 +874,7 @@ code {
   display: flex;
   gap: 8px;
   align-items: center;
-  background: rgba(10, 14, 24, 0.82);
+  background: rgba(12, 12, 14, 0.82);
   border: 1px solid var(--panel-border);
   border-radius: 10px;
   padding: 6px 8px;
@@ -889,7 +889,7 @@ code {
   gap: 2px;
   align-items: center;
   max-width: 62%;
-  background: rgba(10, 14, 24, 0.72);
+  background: rgba(12, 12, 14, 0.72);
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   padding: 6px 10px;
@@ -909,15 +909,15 @@ code {
   white-space: pre;
 }
 .tok.prompt {
-  color: #6a769c;
+  color: #7c7c7c;
 }
 .tok.gen {
-  color: #b6f0c8;
-  background: rgba(90, 220, 150, 0.08);
+  color: #e6e6e6;
+  background: rgba(255, 255, 255, 0.08);
 }
 .tok.gen.last {
-  background: rgba(90, 220, 150, 0.24);
-  color: #dfffe9;
+  background: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
 }
 .tok.cursor {
   color: var(--accent);
@@ -944,7 +944,7 @@ code {
 .gp-params span {
   font-size: 9px;
   letter-spacing: 0.05em;
-  color: #6a769c;
+  color: #7c7c7c;
   display: block;
 }
 .gp-params b {
@@ -992,7 +992,7 @@ code {
 }
 .gp-dims span {
   font-size: 9px;
-  color: #6a769c;
+  color: #7c7c7c;
 }
 .gp-dims b {
   font-family: var(--mono);
@@ -1008,7 +1008,7 @@ code {
 }
 .gp-nparams span {
   font-size: 10px;
-  color: #6a769c;
+  color: #7c7c7c;
 }
 .gp-nparams b {
   font-family: var(--mono);
@@ -1060,7 +1060,7 @@ code {
 .wt-body {
   font-size: 13px;
   line-height: 1.62;
-  color: #c6d0ea;
+  color: #c9c9c9;
 }
 .wt-body p {
   margin: 0 0 12px;
@@ -1086,5 +1086,5 @@ code {
 }
 .wt-tocitem.active {
   color: var(--accent);
-  background: rgba(87, 208, 255, 0.1);
+  background: rgba(255, 255, 255, 0.1);
 }

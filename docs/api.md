@@ -99,6 +99,7 @@ A real streamed greedy generation.
 { "type": "meta", "model": "…", "architecture": "qwen2",
   "num_layers": 24, "num_layer_stats": 25, "prompt_tokens": ["…"],
   "prompt_len": 36, "max_new_tokens": 40, "top_k": 10, "decoding": "greedy",
+  "uses_kv_cache": true,   // the decode loop threads real past_key_values
   "op_catalog": [
     { "index": 0, "op_key": "embedding", "label": "Token Embedding", "layer": null,
       "param_count": 136134656, "cumulative_params": 136134656,
@@ -112,7 +113,11 @@ A real streamed greedy generation.
   "chosen": { "id": 6893, "text": "Red", "logprob": -0.04 },
   "topk": [ { "id": 6893, "text": "Red", "logit": 18.4, "prob": 0.957 } ],
   "layer_stats": [ /* 25 mean |activation| values */ ],
-  "eos": false }
+  "eos": false,
+  // real KV-cache accounting for this step:
+  "phase": "prefill",   // "prefill" (step 0) | "decode" (later steps)
+  "n_positions": 39,    // tokens actually computed this step (prompt_len, then 1)
+  "cache_len": 0 }      // cached positions reused this step (0, then prompt_len + n)
 
 // 3) done
 { "type": "done", "generated_text": "Red", "total_steps": 2 }
@@ -121,3 +126,17 @@ A real streamed greedy generation.
 Payloads are bounded on purpose: the op catalog is sent **once** and token frames
 reference it by index; `topk` is 8–12 entries (not the full vocab); weight
 previews are ≤ 8×8 slices.
+
+### KV-cache phase (real, not decorative)
+
+The decode loop runs `model(..., use_cache=True)` and threads `past_key_values`
+step to step, so the **pre-fill vs decode** distinction is mechanically real and
+reported per frame:
+
+- **step 0 — `prefill`**: processes the whole prompt at once (`n_positions =
+  prompt_len`, `cache_len = 0`), building the cache.
+- **steps ≥ 1 — `decode`**: process a single new token (`n_positions = 1`) and
+  reuse the cached prefix (`cache_len = prompt_len + step − 1`).
+
+The frontend only shows this distinction when `meta.uses_kv_cache` is true —
+never faked.

@@ -35,8 +35,11 @@ and never fabricates numbers.
     `[layer][head][from][to]` attention tensor, and per-layer hidden states
     projected to 3D with PCA.
   - `generate_steps(...)` — a manual greedy decode loop yielding one frame per
-    token (chosen token, top-k probabilities, per-layer activation stats). A
-    `trace` flag also emits the op catalog.
+    token (chosen token, top-k probabilities, per-layer activation stats). It
+    threads real `past_key_values`, so each frame also reports its true KV-cache
+    **phase** (`prefill` for step 0 over the whole prompt, `decode` after),
+    positions computed, and cache length reused. A `trace` flag also emits the
+    op catalog.
   - `_op_catalog()` — the ordered list of forward-pass operations with real
     per-op parameter counts, weight slices, and dims (static per model, cached).
   - `architecture()` — pure introspection of `named_parameters()` + `config`
@@ -49,8 +52,23 @@ and never fabricates numbers.
 ## Frontend (`frontend/`)
 
 - **`lib/store.ts`** — a single Zustand store holding the app mode, explorer
-  state, generation stream + op-walkthrough playback, and settings. It lives
-  outside React's render tree so 60fps `useFrame` reads don't re-render the UI.
+  state, generation stream + op-walkthrough playback, autoplay/speed/overlay
+  settings, and walkthrough state. It lives outside React's render tree so 60fps
+  `useFrame` reads don't re-render the UI.
+- **`lib/playback.ts`** — pure helpers shared by the store, autoplay engine, and
+  scenes: op→layer mapping, per-layer anchors for layer-by-layer stepping, and
+  the real KV-cache `phaseInfo` (prefers backend fields, derives otherwise).
+- **`components/PlaybackEngine.tsx`** — one headless ticker that drives all timed
+  playback: generation autoplays layer-by-layer then rolls to the next token;
+  walkthrough auto-advances chapters. Pacing is normalized by a speed multiplier,
+  never fabricated. Pausing tears down the interval so playback (and the follow
+  camera) freeze at the exact state.
+- **`components/scenes/TransformerStack.tsx`** — the data-driven block geometry
+  (GQA-clustered attention blades, SwiGLU funnel, dual RMSNorm waists, residual
+  through-line), reused by both Generation and Walkthrough.
+- **`components/SceneLoader.tsx`** — the WebGL boundary: probes for WebGL,
+  remounts a fresh canvas on context loss, and shows a readable fallback instead
+  of a broken-image icon.
 - **`lib/gguf/`** — the client-side GGUF binary parser (see
   [gguf-format.md](gguf-format.md)).
 - **`lib/pointcloud.ts`** — turns a tensor list into a `THREE.Points` cloud
@@ -67,9 +85,12 @@ and never fabricates numbers.
   `TensorInfo[]`, which `pointcloud.ts` renders and `TensorList`/`ArchitecturePanel`
   display. Hover picking maps a rendered point back to its real tensor.
 - **Generation:** `startGeneration()` opens the WebSocket with `trace:true`. The
-  first frame carries the op catalog (sent once); token frames follow. Playback
-  walks the recorded catalog with no re-inference; the layer tower highlights the
-  active op and the follow camera tracks it.
+  first frame carries the op catalog (sent once); token frames follow. Once a
+  trace exists it **autoplays** — `PlaybackEngine` walks the recorded catalog
+  layer-by-layer (no re-inference) and rolls to the next token at the end of the
+  stack. The `TransformerStack` highlights the active op's real geometry, the
+  follow camera eases to it, and the KV-phase readout + top-k skyline update from
+  the current frame.
 - **Walkthrough:** loads one real `/analyze` and steps through chapters that read
   real numbers from it while switching the 3D scene in lockstep.
 

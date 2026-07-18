@@ -19,9 +19,9 @@ nothing is illustrative or hardcoded.
 
 | Mode | What it shows | Data source |
 | ---- | ------------- | ----------- |
-| **Architecture** | A 3D point cloud of a model's real tensors, an architecture stat grid, and a scrollable tensor list. | The live model (`GET /architecture`) **or** a drag-and-dropped `.gguf` parsed client-side. |
-| **Generation** | A streamed real greedy generation, walked operation by operation with real parameter counts, formulas, and weight previews, plus a token strip. | `WS /ws/generate` (real forward pass + op catalog). |
-| **Walkthrough** | A chaptered explanation where every number is read from a real forward pass and the 3D advances in lockstep. | `POST /analyze` (real attention + geometry). |
+| **Architecture** | A 3D point cloud of a model's real tensors, a scrollable tensor list, and a real-data model overview card. | The live model (`GET /architecture`) **or** a drag-and-dropped `.gguf` parsed client-side. |
+| **Generation** | An autoplaying real greedy generation walked layer-by-layer over data-driven block geometry (GQA blades, SwiGLU funnel, RMSNorm waists), with follow-mode camera, speed/skip controls, a real pre-fill/decode KV readout, formulas, weight previews, and a top-k skyline. | `WS /ws/generate` (real forward pass + op catalog + phase). |
+| **Walkthrough** | A chaptered, auto-advancing explanation where every number is read from a real forward pass and the 3D advances in lockstep with eased camera moves. | `POST /analyze` (real attention + geometry). |
 
 ## Guiding principle
 

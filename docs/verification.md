@@ -48,6 +48,22 @@ PASS: op catalog is real, ordered, and bounded.
 because the tied unembedding matrix is counted as its own operation — matching
 how the reference tools present "parameters used".)
 
+## KV-cache phases are mechanically real
+
+The streamed trace reports the genuine pre-fill vs decode split, observed on the
+prompt "Name one primary color. Answer in one word." (`prompt_len = 39`):
+
+```
+meta.uses_kv_cache = true
+step 0  phase=prefill  n_positions=39  cache_len=0    → token "Red"
+step 1  phase=decode   n_positions=1   cache_len=39   → token "<|im_end|>"
+```
+
+Step 0 computes the whole 39-token prompt and builds the cache; step 1 computes a
+single new token and reuses the 39 cached positions — decode genuinely does less
+work, because the loop threads real `past_key_values`. The UI only shows this
+distinction when `uses_kv_cache` is true.
+
 ## The GGUF parser matches the binary header
 
 Parsing real local GGUF v3 files of two different architectures:

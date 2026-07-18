@@ -49,8 +49,12 @@ frontend/lib/store.ts        Zustand store (mode, explorer, generation, walkthro
 frontend/lib/gguf/           client-side GGUF parser + ggml type table
 frontend/lib/formulas.ts     architecture-aware KaTeX formula sets
 frontend/lib/pointcloud.ts   tensor list → THREE.Points cloud
-frontend/components/AppShell.tsx   top bar + sidebar + canvas + right panel
-frontend/components/scenes/        TensorCloud, GenerationScene, WalkthroughScene
+frontend/lib/playback.ts     op→layer mapping, layer anchors, KV phaseInfo
+frontend/components/AppShell.tsx        top bar + sidebar + canvas + right panel
+frontend/components/PlaybackEngine.tsx  single autoplay ticker (generation + walkthrough)
+frontend/components/SceneLoader.tsx     WebGL boundary + context-loss recovery
+frontend/components/scenes/        TensorCloud, GenerationScene, WalkthroughScene,
+                                   TransformerStack (data-driven block geometry)
 frontend/components/ui/            all 2D panels
 
 tools/                    headed-Chrome verification & screenshot scripts

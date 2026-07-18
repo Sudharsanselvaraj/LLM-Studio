@@ -9,8 +9,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-22c55e.svg?style=flat" alt="License: MIT" /></a>
   <img src="https://img.shields.io/badge/data-100%25%20real%20forward%20pass-0a0a0a.svg?style=flat" alt="Real data only" />
   <img src="https://img.shields.io/badge/backend-FastAPI%20·%20PyTorch-009688.svg?style=flat" alt="Backend: FastAPI + PyTorch" />
-  <img src="https://img.shields.io/badge/frontend-Next.js%20·%20React%20Three%20Fiber-111111.svg?style=flat" alt="Frontend: Next.js + R3F" />
-  <a href="https://github.com/Sudharsanselvaraj/LLM-Studio/stargazers"><img src="https://img.shields.io/github/stars/Sudharsanselvaraj/LLM-Studio?style=flat&color=eab308" alt="Stars" /></a>
+  </a>
 </p>
 
 ---

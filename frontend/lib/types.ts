@@ -112,6 +112,7 @@ export interface GenMeta {
   max_new_tokens: number;
   top_k: number;
   decoding: string;
+  uses_kv_cache?: boolean;
   op_catalog?: OpCatalogEntry[];
 }
 
@@ -122,6 +123,10 @@ export interface TokenFrame {
   topk: TopKCandidate[];
   layer_stats: number[]; // real mean |activation| per layer (len = num_layer_stats)
   eos: boolean;
+  // Real KV-cache accounting (present when the backend uses a cache).
+  phase?: "prefill" | "decode";
+  n_positions?: number; // tokens actually computed this step
+  cache_len?: number; // cached positions reused this step
 }
 
 export type GenStatus = "idle" | "streaming" | "done" | "error";

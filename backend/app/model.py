@@ -237,6 +237,10 @@ class ModelEngine:
                 "max_new_tokens": max_new_tokens,
                 "top_k": top_k,
                 "decoding": "greedy",
+                # This decode loop genuinely uses a KV cache (use_cache=True with
+                # past_key_values threaded step to step), so the frontend may show
+                # the real prefill/decode distinction.
+                "uses_kv_cache": True,
             }
             if include_catalog:
                 meta["op_catalog"] = self._op_catalog()
@@ -246,8 +250,18 @@ class ModelEngine:
             past = None
             cur = input_ids
             generated_ids: list[int] = []
+            # Track KV-cache growth so each frame can report the REAL prefill vs
+            # decode distinction: step 0 processes the whole prompt at once
+            # (past is None -> a "prefill" pass building the cache); every later
+            # step feeds a single new token and reuses the cached keys/values
+            # ("decode"). positions_done is the cache length seen at a step's input.
+            positions_done = 0
 
             for step in range(max_new_tokens):
+                n_positions = int(cur.shape[1])  # tokens actually computed this step
+                cache_len_in = positions_done    # cached positions reused this step
+                phase = "prefill" if past is None else "decode"
+
                 out = self.model(
                     input_ids=cur,
                     past_key_values=past,
@@ -255,6 +269,7 @@ class ModelEngine:
                     output_hidden_states=True,
                 )
                 past = out.past_key_values
+                positions_done += n_positions
                 logits = out.logits[:, -1, :]  # [1, vocab]
                 probs = logits.softmax(-1)
 
@@ -291,6 +306,10 @@ class ModelEngine:
                     ],
                     "layer_stats": layer_stats,
                     "eos": is_eos,
+                    # Real KV-cache accounting for this step (see loop comment).
+                    "phase": phase,  # "prefill" | "decode"
+                    "n_positions": n_positions,  # tokens computed this step
+                    "cache_len": cache_len_in,  # cached positions reused this step
                 }
 
                 if is_eos:

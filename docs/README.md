@@ -9,9 +9,13 @@ nothing is illustrative or hardcoded.
 - [**Architecture**](architecture.md) — how the backend, frontend and the three
   modes fit together, and how data flows.
 - [**API reference**](api.md) — the backend HTTP + WebSocket endpoints.
+- [**Visual mapping**](visual-mapping.md) — the explicit contract between real
+  model properties and rendered geometry, colour, and motion.
 - [**GGUF format**](gguf-format.md) — what the client-side GGUF parser reads and
   how it maps to the UI.
 - [**Development**](development.md) — setup, running, and where things live.
+- [**Deployment**](deployment.md) — hosting the frontend and backend (and why the
+  backend can't be serverless).
 - [**Verification**](verification.md) — how the "the data is real" claim is
   proven, with concrete numbers.
 

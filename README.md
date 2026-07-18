@@ -110,8 +110,10 @@ See [`docs/verification.md`](docs/verification.md) for the full evidence with ex
 | --- | ------------- |
 | [Architecture](docs/architecture.md) | How the backend, frontend, and data flow fit together |
 | [API reference](docs/api.md) | The REST + WebSocket endpoints |
+| [Visual mapping](docs/visual-mapping.md) | Real model properties → rendered geometry, colour, motion |
 | [GGUF format](docs/gguf-format.md) | Exactly what the client-side parser reads |
 | [Development](docs/development.md) | Setup and where things live |
+| [Deployment](docs/deployment.md) | Hosting the frontend + backend |
 | [Verification](docs/verification.md) | How "the data is real" is proven |
 
 ## Honest limitations

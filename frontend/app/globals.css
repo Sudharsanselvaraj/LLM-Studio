@@ -726,6 +726,57 @@ code {
 .canvas-area canvas {
   display: block;
 }
+
+/* WebGL missing — readable fallback instead of the browser's broken-image icon. */
+.webgl-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  padding: 40px;
+  color: var(--text);
+}
+.webgl-fallback-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+.webgl-fallback p {
+  max-width: 460px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 0;
+}
+.webgl-fallback-steps b {
+  color: var(--text);
+  font-family: var(--mono);
+  font-weight: 600;
+}
+.webgl-fallback .chip-btn {
+  margin-top: 6px;
+}
+
+/* Transient overlay while a lost context is being restored/remounted. */
+.webgl-lost {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(12, 12, 14, 0.9);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--muted);
+}
 .canvas-hint {
   position: absolute;
   bottom: 12px;
@@ -779,6 +830,73 @@ code {
   font-size: 12.5px;
   line-height: 1.6;
   margin-top: 10px;
+}
+
+/* --- Architecture overview card (right panel, nothing selected) --------- */
+.rp-overview {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.rp-modelname {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.rp-modelsub {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: -12px;
+}
+.rp-statgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--panel-border);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.rp-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  background: var(--bg);
+}
+.rp-stat span {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #7c7c7c;
+}
+.rp-stat b {
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.rp-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rp-legend-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #7c7c7c;
+}
+.rp-hint {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+  border-top: 1px solid var(--panel-border);
+  padding-top: 14px;
 }
 .tensor-detail {
   margin-top: 6px;
@@ -874,10 +992,81 @@ code {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 92%;
   background: rgba(12, 12, 14, 0.82);
   border: 1px solid var(--panel-border);
   border-radius: 10px;
   padding: 6px 8px;
+}
+
+/* KV-cache phase badge (real prefill/decode readout). */
+.phase-badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  font-family: var(--mono);
+  padding: 4px 9px;
+  border-radius: 7px;
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  white-space: nowrap;
+}
+.phase-badge b,
+.phase-badge {
+  font-weight: 600;
+}
+.phase-badge em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 11px;
+}
+.phase-badge.prefill {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.1);
+}
+.phase-badge.decode {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Overlay/display settings popover under the transport. */
+.gen-settings {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(12, 12, 14, 0.94);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+.gen-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--text);
+  cursor: pointer;
+}
+.gen-setting.col {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.gen-setting input[type="range"] {
+  accent-color: var(--accent);
+  width: 100%;
+}
+.gen-setting input[type="checkbox"] {
+  accent-color: var(--accent);
 }
 .token-strip {
   position: absolute;
@@ -1013,6 +1202,83 @@ code {
 .gp-nparams b {
   font-family: var(--mono);
   font-size: 15px;
+}
+
+/* KV-cache phase line in the generation panel. */
+.gp-phase {
+  font-size: 11.5px;
+  font-family: var(--mono);
+  color: var(--muted);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 7px 9px;
+  margin: 4px 0 12px;
+}
+.gp-phase b {
+  color: var(--text);
+  font-weight: 600;
+}
+.gp-phase.prefill {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+/* Dev mode: raw sampled values. */
+.gp-dev {
+  margin-top: 14px;
+  border-top: 1px solid var(--panel-border);
+  padding-top: 12px;
+}
+.gp-dev-title {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.gp-dev-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 3px 0;
+}
+.gp-dev-row span {
+  color: #7c7c7c;
+}
+.gp-dev-row b {
+  color: var(--text);
+  font-weight: 600;
+}
+.gp-dev-sub {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #7c7c7c;
+  margin: 10px 0 4px;
+}
+.gp-dev-vals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: #c9c9c9;
+}
+.gp-dev-note {
+  margin-top: 10px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* Walkthrough chapter autoplay row. */
+.wt-play {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
 }
 .wp-grid {
   display: grid;

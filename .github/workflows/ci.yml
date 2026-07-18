@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend · type-check & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # `next build` type-checks the whole tree and runs ESLint, so a green
+      # build is the real gate. It needs no backend — the app is env-driven.
+      - name: Build (type-check + lint + compile)
+        run: npm run build
+
+  backend:
+    name: Backend · syntax & lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Byte-compile only: catches syntax errors without installing PyTorch or
+      # downloading the ~1GB model (too heavy/flaky for CI). The real forward-pass
+      # verification scripts are meant to be run locally against the live model.
+      - name: Byte-compile
+        run: python -m compileall -q backend/app backend/scripts
+
+      - name: Lint (ruff, informational)
+        continue-on-error: true
+        run: |
+          python -m pip install --quiet ruff
+          ruff check backend/app backend/scripts

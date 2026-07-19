@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="brand-logo.png" alt="LLMStudio" width="440" />
+  <img src="TokenPrint logo.png" alt="LLMStudio" width="440" />
 </div>
 
 <h3 align="center">See a language model think — real internals, real forward pass, real-time 3D.</h3>
@@ -15,7 +15,7 @@
 ---
 
 <p align="center">
-  <img src=".github/assets/demo.gif" alt="LLMStudio — live demo" width="820" />
+  <img src=".github/assets/demo.gif" alt="TokenPrint — live demo" width="820" />
 </p>
 
 **LLMStudio** is a browser-based 3D inspector for the internals of a language model. Load a

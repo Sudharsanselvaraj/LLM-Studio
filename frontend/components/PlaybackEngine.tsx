@@ -10,6 +10,7 @@ import { CHAPTERS } from "@/lib/walkthrough";
 // (the trace records no timing, and fabricating smoothing data is out of scope).
 // Every layer step takes the same wall-clock time, scaled only by playSpeed.
 const GEN_LAYER_MS = 480; // one "layer by layer" step at 1× speed
+const GEN_FRAME_MS = 900; // one frame step (no-op-catalog trace) at 1×
 const WT_CHAPTER_MS = 4200; // one chapter at 1× speed (reading pace)
 
 /**
@@ -33,7 +34,7 @@ export default function PlaybackEngine() {
   // end-to-end. Only once per generation (autoStarted latches until the next run).
   useEffect(() => {
     if (mode !== "generation") return;
-    if (hasCatalog && framesLen > 0 && !autoStarted) {
+    if (framesLen > 0 && !autoStarted) {
       useStore.setState({
         opPlaying: true,
         autoStarted: true,
@@ -41,10 +42,26 @@ export default function PlaybackEngine() {
         playIndex: 0,
       });
     }
-  }, [mode, hasCatalog, framesLen, autoStarted]);
+  }, [mode, framesLen, autoStarted]);
 
-  // Generation: advance one layer per tick; roll to the next token's forward
-  // pass at the end of the stack; stop at the end of the trace.
+  // Generation (no op_catalog): simple frame-by-frame advance.
+  useEffect(() => {
+    if (mode !== "generation" || !opPlaying) return;
+    const hasCat = !!useStore.getState().genMeta?.op_catalog?.length;
+    if (hasCat) return;
+    const id = setInterval(() => {
+      const s = useStore.getState();
+      if (s.playIndex < s.genFrames.length - 1) {
+        useStore.setState({ playIndex: s.playIndex + 1 });
+      } else if (s.genStatus !== "streaming") {
+        useStore.setState({ opPlaying: false });
+      }
+    }, Math.max(120, GEN_FRAME_MS / playSpeed));
+    return () => clearInterval(id);
+  }, [mode, opPlaying, playSpeed]);
+
+  // Generation (with op_catalog): advance one layer per tick; roll to the next
+  // token's forward pass at the end of the stack; stop at the end of the trace.
   useEffect(() => {
     if (mode !== "generation" || !opPlaying) return;
     const id = setInterval(() => {

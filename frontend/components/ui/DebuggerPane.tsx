@@ -16,8 +16,9 @@ import AblationPanel from "./AblationPanel";
  */
 export default function DebuggerPane() {
   const arch = useStore((s) => s.arch);
+  const genMeta = useStore((s) => s.genMeta);
   const opIndex = useStore((s) => s.opIndex);
-  const catalog = useStore((s) => s.genMeta?.op_catalog ?? []);
+  const catalog = genMeta?.op_catalog;
 
   if (!arch) {
     return (
@@ -34,7 +35,7 @@ export default function DebuggerPane() {
         <span className="dbg-title">Debugger Dashboard</span>
         <span className="dbg-subtitle">
           {arch.metadata.name} · {arch.tensor_count} tensors ·{" "}
-          {catalog.length > 0 ? `${opIndex + 1}/${catalog.length} ops` : "no generation data"}
+          {(catalog?.length ?? 0) > 0 ? `${opIndex + 1}/${catalog!.length} ops` : "no generation data"}
         </span>
       </div>
 

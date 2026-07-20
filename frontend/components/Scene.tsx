@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { ContactShadows, OrbitControls } from "@react-three/drei";
 import type { Group } from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 
@@ -171,6 +171,15 @@ export default function Scene({
 
       <DebugExpose />
       <Brightness />
+      {/* Contact shadows for AO — casts down from every mesh onto invisible ground. */}
+      <ContactShadows
+        resolution={512}
+        position={[0, -10, 0]}
+        scale={80}
+        blur={4}
+        opacity={0.35}
+        far={20}
+      />
       <OrbitControls makeDefault enableDamping dampingFactor={0.08} minDistance={2} maxDistance={2000} />
     </Canvas>
   );

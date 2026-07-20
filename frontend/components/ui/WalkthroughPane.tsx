@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
 import { CHAPTERS, REF_MODELS } from "@/lib/walkthrough";
+import { PRESET_PROMPTS } from "@/lib/prompts";
 import { fmtCount } from "@/lib/format";
 
 function useLoadingElapsed(loading: boolean): number {
@@ -123,6 +124,25 @@ export default function WalkthroughPane() {
           {lines.map((l, i) => (
             <p key={i}>{l}</p>
           ))}
+          {ch.id === "tokenizer" && (
+            <>
+              <div className="side-title" style={{ marginTop: 12 }}>
+                Try other languages
+              </div>
+              <div className="sentence-presets">
+                {PRESET_PROMPTS.map((p) => (
+                  <button
+                    key={p.label}
+                    className="chip-btn preset-chip"
+                    onClick={() => analyze(p.text)}
+                    title={p.note}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 

@@ -70,9 +70,19 @@ export default function PlaybackControls() {
 
       {cur && (
         <div className="footer-note" style={{ marginTop: 8 }}>
-          chosen token: <strong>“{cur.chosen.text}”</strong> · p=
-          {(cur.topk[0]?.prob ?? 0).toFixed(3)} · replaying recorded real data,
-          not a re-simulation.
+          chosen token:{" "}
+          <strong
+            title={
+              "Case-sensitive token identity from the real tokenizer. " +
+              (cur.chosen.text.match(/[A-Z]/) && cur.chosen.text.match(/[a-z]/)
+                ? `"${cur.chosen.text}" has a specific token ID (${cur.chosen.id}) that differs from its lowercased form — a hallmark of real BPE tokenization. Synthetic demos generate fake token sequences.`
+                : `Token ID ${cur.chosen.id} maps to exactly "${cur.chosen.text}" — a real entry in the model's vocabulary.`)
+            }
+          >
+            &ldquo;{cur.chosen.text}&rdquo;
+          </strong>{" "}
+          · p={(cur.topk[0]?.prob ?? 0).toFixed(3)} · replaying recorded real
+          data, not a re-simulation.
         </div>
       )}
     </div>

@@ -131,6 +131,16 @@ main.app-root {
 .sentence-form input:focus {
   border-color: var(--accent);
 }
+.sentence-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+.preset-chip {
+  font-size: 10px;
+  padding: 3px 8px;
+}
 
 button.primary {
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
@@ -488,8 +498,8 @@ code {
   width: 100vw;
   display: grid;
   grid-template-columns: 300px 1fr 360px;
-  grid-template-rows: 58px 1fr;
-  grid-template-areas: "top top top" "side canvas right";
+  grid-template-rows: 58px 1fr auto;
+  grid-template-areas: "top top top" "side canvas right" "bot bot bot";
   background: var(--bg);
 }
 
@@ -1498,7 +1508,7 @@ code {
   font-size: 10px;
 }
 
-/* --- Evolution Timeline (v0.3) ------------------------------------------ */
+/* --- Prediction Timeline (v0.3) ------------------------------------------ */
 .timeline-panel {
   position: absolute;
   top: 56px;
@@ -1943,11 +1953,48 @@ code {
   max-height: 200px;
   overflow-y: auto;
 }
+.hi-verdicts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.hi-verdict-tag {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--tag, #888) 20%, transparent);
+  color: var(--tag, #888);
+  border: 1px solid color-mix(in srgb, var(--tag, #888) 40%, transparent);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.hi-verdict-conf {
+  font-size: 9px;
+  opacity: 0.7;
+  font-weight: 400;
+}
 .hi-fp-row {
   display: flex;
   align-items: center;
   gap: 4px;
   padding: 1px 0;
+}
+.hi-fp-verdict {
+  font-size: 8px;
+  color: var(--muted);
+  white-space: nowrap;
+  max-width: 70px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+.hi-fp-row.active .hi-fp-verdict {
+  color: var(--text);
+  opacity: 1;
 }
 .hi-fp-row.active {
   background: rgba(255, 255, 255, 0.08);
@@ -2643,6 +2690,12 @@ code {
   margin-bottom: 6px;
   line-height: 1.4;
 }
+.side-section-divider {
+  height: 1px;
+  background: var(--panel-border);
+  margin: 10px 0;
+  opacity: 0.35;
+}
 
 /* --- Share Snapshot URL (#5) ----------------------------------------------- */
 .share-btn {
@@ -2845,6 +2898,39 @@ code {
   font-size: 13px;
   color: var(--muted);
   line-height: 1.6;
+}
+
+/* --- Bottom bar (docked timeline) --- */
+.bottom-bar {
+  grid-area: bot;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: rgba(10, 10, 12, 0.88);
+  border-top: 1px solid var(--panel-border);
+  padding: 4px 12px;
+  overflow-x: auto;
+}
+.bb-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bb-controls {
+  padding: 2px 0;
+}
+.bb-tokens {
+  padding: 2px 0;
+  flex-wrap: wrap;
+}
+.bb-spacer {
+  flex: 1;
+}
+.bb-info {
+  font-size: 12px;
+  color: var(--muted);
+  font-family: var(--mono);
+  margin-left: 8px;
 }
 
 /* Reset absolute positioning of child panels when inside debugger dashboard. */

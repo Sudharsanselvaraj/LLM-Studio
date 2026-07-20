@@ -56,6 +56,7 @@ export const CHAPTERS: Chapter[] = [
       `“${d?.sentence ?? "…"}” becomes ${d?.tokens.length ?? "…"} real tokens:`,
       tokList(d),
       `Each token also carries a vocabulary id (e.g. “${d?.tokens[0]?.text.trim() ?? "?"}” = #${d?.tokens[0]?.id ?? "?"}).`,
+      `For non-Latin scripts like Tamil, Hindi, or Chinese, the tokenizer falls back to byte-level encoding — each character fragments into 1–3 byte tokens. Try the prompts below to see the difference.`,
     ],
   },
   {

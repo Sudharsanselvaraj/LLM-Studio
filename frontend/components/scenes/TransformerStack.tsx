@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Billboard, Text } from "@react-three/drei";
 import { Color, Euler, InstancedMesh, Matrix4, Quaternion, Vector3 } from "three";
 
@@ -29,90 +29,161 @@ export interface StackDims {
 
 const GRAY = new Color(0.44, 0.48, 0.56);
 const DIM = new Color(0.28, 0.31, 0.38);
+const HOVER_GLOW = new Color(1, 1, 1);
 
-/** RMSNorm waist: two cones pinched to a narrow neck — the smallest block form. */
+function hoverColor(base: Color, hovered: boolean, active: boolean): Color {
+  if (hovered && !active) return base.clone().lerp(HOVER_GLOW, 0.25);
+  return base;
+}
+
+/** RMSNorm waist: two cones pinched to a narrow neck — the smallest block form.
+ *  The glowing ring at the neck represents the learnable scale vector (γ). */
 function NormWaist({
   y,
   active,
+  hovered,
   color,
   intensity,
+  onPointerEnter,
+  onPointerLeave,
+  onClick,
 }: {
   y: number;
   active: boolean;
+  hovered: boolean;
   color: Color;
   intensity: number;
+  onPointerEnter?: () => void;
+  onPointerLeave?: () => void;
+  onClick?: () => void;
 }) {
   const c = active ? color : GRAY;
+  const finalColor = hoverColor(c, hovered, active);
   const NECK = 0.14;
   const WIDE = 0.46;
   const H = 0.42;
-  const mat = (
-    <meshStandardMaterial
-      color={c}
-      emissive={c}
-      emissiveIntensity={active ? intensity : 0.06}
-      roughness={0.55}
-      metalness={0.22}
-    />
-  );
+  const sc = hovered ? 1.12 : 1;
   return (
-    <group position={[0, y, 0]}>
-      <mesh position={[0, H / 2, 0]}>
+    <group position={[0, y, 0]} scale={sc}>
+      <mesh
+        position={[0, H / 2, 0]}
+        onPointerEnter={onPointerEnter}
+        onPointerLeave={onPointerLeave}
+        onClick={onClick}
+      >
         <cylinderGeometry args={[WIDE, NECK, H, 28]} />
-        {mat}
+        <meshStandardMaterial
+          color={finalColor}
+          emissive={finalColor}
+          emissiveIntensity={active || hovered ? intensity : 0.06}
+          roughness={0.55}
+          metalness={0.22}
+        />
       </mesh>
       <mesh position={[0, -H / 2, 0]}>
         <cylinderGeometry args={[NECK, WIDE, H, 28]} />
-        {mat}
+        <meshStandardMaterial
+          color={finalColor}
+          emissive={finalColor}
+          emissiveIntensity={active || hovered ? intensity : 0.06}
+          roughness={0.55}
+          metalness={0.22}
+        />
+      </mesh>
+      {/* Learnable-scale collar: a thin ring at the neck representing γ (gain). */}
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[NECK * 0.85, 0.025, 8, 20]} />
+        <meshBasicMaterial
+          color="#aaccff"
+          transparent
+          opacity={active ? 0.7 : hovered ? 0.5 : 0.2}
+        />
       </mesh>
     </group>
   );
 }
 
-/** SwiGLU MLP: gate+up input prongs → wide belly (ffn) → down-projection. */
+/** SwiGLU MLP: gate+up input prongs → wide belly (ffn) → down-projection.
+ *  The gate prong (orange) and up prong (yellow) combine at a junction node,
+ *  representing the element-wise gating that distinguishes SwiGLU from plain ReLU. */
 function MlpFunnel({
   y,
   radius,
   active,
+  hovered,
   color,
   intensity,
+  onPointerEnter,
+  onPointerLeave,
+  onClick,
 }: {
   y: number;
   radius: number;
   active: boolean;
+  hovered: boolean;
   color: Color;
   intensity: number;
+  onPointerEnter?: () => void;
+  onPointerLeave?: () => void;
+  onClick?: () => void;
 }) {
   const c = active ? color : GRAY;
-  const mat = (
-    <meshStandardMaterial
-      color={c}
-      emissive={c}
-      emissiveIntensity={active ? intensity : 0.06}
-      roughness={0.5}
-      metalness={0.24}
-    />
-  );
+  const finalColor = hoverColor(c, hovered, active);
+  const sc = hovered ? 1.12 : 1;
   return (
-    <group position={[0, y, 0]}>
-      {/* gate + up projections — two prongs feeding the belly (SwiGLU) */}
-      <mesh position={[-0.28, 0.62, 0]}>
+    <group position={[0, y, 0]} scale={sc}>
+      {/* Gate prong (warm orange, left) — Swish activation.
+          Up prong (gold, right) — linear projection.
+          SwiGLU = Swish(gate(x)) × up(x), hence always paired. */}
+      <mesh
+        position={[-0.28, 0.62, 0]}
+        onPointerEnter={onPointerEnter}
+        onPointerLeave={onPointerLeave}
+        onClick={onClick}
+      >
         <cylinderGeometry args={[0.14, 0.14, 0.5, 12]} />
-        {mat}
+        <meshStandardMaterial
+          color="#e88530"
+          emissive="#e88530"
+          emissiveIntensity={active || hovered ? intensity : 0.08}
+          roughness={0.5}
+          metalness={0.24}
+        />
       </mesh>
       <mesh position={[0.28, 0.62, 0]}>
         <cylinderGeometry args={[0.14, 0.14, 0.5, 12]} />
-        {mat}
+        <meshStandardMaterial
+          color="#d4a030"
+          emissive="#d4a030"
+          emissiveIntensity={active || hovered ? intensity : 0.08}
+          roughness={0.5}
+          metalness={0.24}
+        />
       </mesh>
-      {/* up-projection: narrow → wide belly (real ffn width) */}
+      {/* Junction: element-wise multiplication of gate × up */}
+      <mesh position={[0, 0.38, 0]}>
+        <sphereGeometry args={[0.1, 8, 8]} />
+        <meshBasicMaterial color="#ffcc66" transparent opacity={active ? 0.9 : 0.3} />
+      </mesh>
       <mesh position={[0, 0.16, 0]}>
         <cylinderGeometry args={[radius, 0.28, 0.5, 32]} />
-        {mat}
+        <meshStandardMaterial
+          color={finalColor}
+          emissive={finalColor}
+          emissiveIntensity={active || hovered ? intensity : 0.06}
+          roughness={0.5}
+          metalness={0.24}
+        />
       </mesh>
-      {/* down-projection: belly → back to hidden size */}
       <mesh position={[0, -0.36, 0]}>
         <cylinderGeometry args={[0.24, radius, 0.5, 32]} />
-        {mat}
+        <meshStandardMaterial
+          color={finalColor}
+          emissive={finalColor}
+          emissiveIntensity={active || hovered ? intensity : 0.06}
+          roughness={0.5}
+          metalness={0.24}
+        />
       </mesh>
     </group>
   );
@@ -126,14 +197,22 @@ export default function TransformerStack({
   opColor,
   statNorm,
   gap,
+  hoveredLayer,
+  hoveredKind,
+  onHover,
+  onClick,
 }: {
   nLayers: number;
   dims: StackDims;
-  activeLayer: number | null; // -1 embedding, i block, nLayers output
+  activeLayer: number | null;
   activeKind: OpKind | null;
   opColor: [number, number, number];
   statNorm: number;
   gap: number;
+  hoveredLayer?: number | null;
+  hoveredKind?: OpKind | null;
+  onHover?: (layer: number | null, kind: OpKind | null) => void;
+  onClick?: (layer: number, kind: OpKind) => void;
 }) {
   const opCol = useMemo(() => new Color(...opColor), [opColor]);
   const activeIntensity = 1.15 + 1.2 * statNorm;
@@ -207,29 +286,55 @@ export default function TransformerStack({
     if (m.instanceColor) m.instanceColor.needsUpdate = true;
   }, [activeLayer, activeKind, opCol, nLayers, dims.numHeads]);
 
+  const [hoveredInstance, setHoveredInstance] = useState<number | null>(null);
   const stackHeight = (nLayers + 2) * gap;
   const midY = -((nLayers + 1) * gap) / 2;
+  const nh = Math.max(1, dims.numHeads);
+
+  const handleEnter = useCallback(
+    (layer: number, kind: OpKind) => () => onHover?.(layer, kind),
+    [onHover],
+  );
+  const handleLeave = useCallback(
+    () => onHover?.(null, null),
+    [onHover],
+  );
+  const handleClick = useCallback(
+    (layer: number, kind: OpKind) => () => onClick?.(layer, kind),
+    [onClick],
+  );
 
   return (
     <group>
       {/* Residual stream — one continuous through-line down the whole stack. */}
-      <mesh position={[0, midY, 0]}>
+      <mesh
+        position={[0, midY, 0]}
+        onPointerEnter={() => onHover?.(999, "norm")}
+        onPointerLeave={handleLeave}
+        onClick={() => onClick?.(0, "norm")}
+      >
         <cylinderGeometry args={[0.07, 0.07, stackHeight, 10]} />
         <meshStandardMaterial
           color={"#9aa3ba"}
           emissive={"#5a6278"}
-          emissiveIntensity={0.5}
+          emissiveIntensity={hoveredKind === "norm" && hoveredLayer === 999 ? 1.2 : 0.5}
           roughness={0.45}
         />
       </mesh>
 
       {/* Token embedding volume (width ∝ log2 vocab, depth ∝ embedding dim). */}
-      <mesh position={[0, layerY(-1), 0]}>
+      <mesh
+        position={[0, layerY(-1), 0]}
+        onPointerEnter={handleEnter(-1, "embedding")}
+        onPointerLeave={handleLeave}
+        onClick={handleClick(-1, "embedding")}
+        scale={hoveredLayer === -1 && hoveredKind === "embedding" ? 1.08 : 1}
+      >
         <boxGeometry args={[embWidth, 0.9, embDepth]} />
         <meshStandardMaterial
-          color={activeKind === "embedding" ? opCol : GRAY}
-          emissive={activeKind === "embedding" ? opCol : GRAY}
-          emissiveIntensity={activeKind === "embedding" ? activeIntensity : 0.06}
+          color={activeKind === "embedding" || (hoveredLayer === -1 && hoveredKind === "embedding") ? opCol : GRAY}
+          emissive={activeKind === "embedding" || (hoveredLayer === -1 && hoveredKind === "embedding") ? opCol : GRAY}
+          emissiveIntensity={activeKind === "embedding" ? activeIntensity : (hoveredLayer === -1 && hoveredKind === "embedding") ? 1.0 : 0.06}
           roughness={0.6}
           metalness={0.2}
         />
@@ -238,26 +343,65 @@ export default function TransformerStack({
       {/* Per-layer blocks: two RMSNorm waists + SwiGLU funnel (blades instanced). */}
       {Array.from({ length: nLayers }, (_, li) => {
         const isActive = li === activeLayer;
+        const isHovered = li === hoveredLayer;
         return (
           <group key={li}>
             <NormWaist
               y={yNorm1(li)}
               active={isActive && activeKind === "norm"}
+              hovered={isHovered && hoveredKind === "norm"}
               color={opCol}
               intensity={activeIntensity}
+              onPointerEnter={handleEnter(li, "norm")}
+              onPointerLeave={handleLeave}
+              onClick={handleClick(li, "norm")}
             />
             <NormWaist
               y={yNorm2(li)}
               active={isActive && activeKind === "norm"}
+              hovered={isHovered && hoveredKind === "norm"}
               color={opCol}
               intensity={activeIntensity}
+              onPointerEnter={handleEnter(li, "norm")}
+              onPointerLeave={handleLeave}
+              onClick={handleClick(li, "norm")}
             />
+
+            {/* Branch / merge nodes — show the residual stream splitting and
+                recombining at each layer. Green = branch (copy from residual),
+                blue = merge (add back into residual). */}
+            {Array.from({ length: 2 }, (_, side) => {
+              const yB = side === 0 ? yNorm1(li) : yNorm2(li);
+              const yM = side === 0 ? yAttn(li) : yMlp(li);
+              return (
+                <group key={`res-${side}`}>
+                  <mesh position={[0.18, yB, 0]}>
+                    <sphereGeometry args={[0.06, 8, 8]} />
+                    <meshBasicMaterial color="#5ab87a" transparent opacity={isActive ? 0.8 : 0.3} />
+                  </mesh>
+                  <mesh position={[-0.18, yM, 0]}>
+                    <sphereGeometry args={[0.06, 8, 8]} />
+                    <meshBasicMaterial color="#5a8ab8" transparent opacity={isActive ? 0.8 : 0.3} />
+                  </mesh>
+                  {/* Subtle connecting arc from merge back toward the residual axis. */}
+                  <mesh position={[-0.1, yM, 0]}>
+                    <boxGeometry args={[0.16, 0.02, 0.02]} />
+                    <meshBasicMaterial color="#5a8ab8" transparent opacity={isActive ? 0.5 : 0.15} />
+                  </mesh>
+                </group>
+              );
+            })}
+
             <MlpFunnel
               y={yMlp(li)}
               radius={funnelRadius}
               active={isActive && activeKind === "mlp"}
+              hovered={isHovered && hoveredKind === "mlp"}
               color={opCol}
               intensity={activeIntensity}
+              onPointerEnter={handleEnter(li, "mlp")}
+              onPointerLeave={handleLeave}
+              onClick={handleClick(li, "mlp")}
             />
           </group>
         );
@@ -268,10 +412,67 @@ export default function TransformerStack({
         ref={bladeMesh}
         args={[undefined as never, undefined as never, bladeCount]}
         frustumCulled={false}
+        onPointerMove={(e) => {
+          const id = e.instanceId;
+          if (id != null) {
+            const layer = Math.floor(id / nh);
+            setHoveredInstance(id);
+            onHover?.(layer, "attn");
+          }
+        }}
+        onPointerLeave={() => {
+          setHoveredInstance(null);
+          onHover?.(null, null);
+        }}
+        onClick={(e) => {
+          const id = e.instanceId;
+          if (id != null) {
+            const layer = Math.floor(id / nh);
+            onClick?.(layer, "attn");
+          }
+        }}
       >
         <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial roughness={0.4} metalness={0.32} vertexColors />
       </instancedMesh>
+
+      {/* Hovered attention instance highlight */}
+      {hoveredInstance != null && (
+        <mesh
+          position={new Vector3().fromArray([
+            (() => {
+              const Rc = 1.25;
+              const li = Math.floor(hoveredInstance / nh);
+              const h = hoveredInstance % nh;
+              const g = Math.floor(h / perGroup);
+              const withinN = Math.min(perGroup, dims.numHeads - g * perGroup);
+              const i = h - g * perGroup;
+              const groupGap = 0.55;
+              const groupSpan = (Math.PI * 2) / kvGroups - groupGap;
+              const gStart = g * ((Math.PI * 2) / kvGroups) + groupGap / 2;
+              const a = withinN > 1 ? gStart + (i / (withinN - 1)) * groupSpan : gStart + groupSpan / 2;
+              return Rc * Math.sin(a);
+            })(),
+            yAttn(Math.floor(hoveredInstance / nh)),
+            (() => {
+              const Rc = 1.25;
+              const li = Math.floor(hoveredInstance / nh);
+              const h = hoveredInstance % nh;
+              const g = Math.floor(h / perGroup);
+              const withinN = Math.min(perGroup, dims.numHeads - g * perGroup);
+              const i = h - g * perGroup;
+              const groupGap = 0.55;
+              const groupSpan = (Math.PI * 2) / kvGroups - groupGap;
+              const gStart = g * ((Math.PI * 2) / kvGroups) + groupGap / 2;
+              const a = withinN > 1 ? gStart + (i / (withinN - 1)) * groupSpan : gStart + groupSpan / 2;
+              return Rc * Math.cos(a);
+            })(),
+          ])}
+        >
+          <sphereGeometry args={[0.18, 12, 12]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.6} />
+        </mesh>
+      )}
 
       {/* GQA label at the active layer's attention station. */}
       {activeLayer != null && activeLayer >= 0 && activeKind === "attn" && (
@@ -284,12 +485,17 @@ export default function TransformerStack({
 
       {/* Output: converging funnel toward the vocabulary distribution. */}
       <group position={[0, layerY(nLayers), 0]}>
-        <mesh>
+        <mesh
+          onPointerEnter={handleEnter(nLayers, "output")}
+          onPointerLeave={handleLeave}
+          onClick={handleClick(nLayers, "output")}
+          scale={hoveredLayer === nLayers && hoveredKind === "output" ? 1.08 : 1}
+        >
           <cylinderGeometry args={[1.3, 0.16, 1.0, 32]} />
           <meshStandardMaterial
-            color={activeKind === "output" ? opCol : GRAY}
-            emissive={activeKind === "output" ? opCol : GRAY}
-            emissiveIntensity={activeKind === "output" ? activeIntensity : 0.06}
+            color={activeKind === "output" || (hoveredLayer === nLayers && hoveredKind === "output") ? opCol : GRAY}
+            emissive={activeKind === "output" || (hoveredLayer === nLayers && hoveredKind === "output") ? opCol : GRAY}
+            emissiveIntensity={activeKind === "output" ? activeIntensity : (hoveredLayer === nLayers && hoveredKind === "output") ? 1.0 : 0.06}
             roughness={0.5}
             metalness={0.24}
           />

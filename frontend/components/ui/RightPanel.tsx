@@ -77,7 +77,10 @@ export default function RightPanel() {
         <div className="side-title">Worked Example</div>
         {d ? (
           <>
-            <div className="family-chip">
+            <div
+              className="family-chip"
+              title="This walkthrough uses real recorded inference data from a concrete prompt and model. Every tensor value, attention pattern, and logit is from an actual execution — not a simulation or idealized diagram."
+            >
               real forward pass · <span>{d.model}</span>
             </div>
             <div className="td-grid">
@@ -128,7 +131,14 @@ export default function RightPanel() {
     <div className="rightpanel">
       <div className="side-title">Tensor Inspector</div>
       {arch && (
-        <div className="family-chip">
+        <div
+          className="family-chip"
+          title={
+            family === "llama"
+              ? "Real GQA: query heads are grouped into KV-head clusters (e.g., 14→2). Only a real model has consistent group assignments that match its architecture config — synthetic data invents or evenly splits them."
+              : "The architecture family determines which normalization, position encoding, and activation functions are used. These are read from the real model's config."
+          }
+        >
           <span>{arch.metadata.architecture}</span> · {FAMILY_SUMMARY[family]}
         </div>
       )}
@@ -194,14 +204,8 @@ export default function RightPanel() {
       ) : arch ? (
         <div className="rp-overview">
           <div className="rp-modelname">{arch.metadata.name}</div>
-          <div className="rp-modelsub">
-            {fmtCount(arch.metadata.total_params)} parameters · {arch.tensor_count}{" "}
-            tensors · {arch.metadata.torch_dtype ?? arch.metadata.quantization ?? ""}
-          </div>
 
           <div className="rp-statgrid">
-            <Stat label="Layers" value={arch.metadata.num_layers} />
-            <Stat label="Attn heads" value={arch.metadata.num_heads} />
             <Stat label="KV heads" value={arch.metadata.num_kv_heads} />
             <Stat label="Hidden" value={arch.metadata.hidden_size} />
             <Stat label="Head dim" value={arch.metadata.head_dim} />

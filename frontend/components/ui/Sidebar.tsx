@@ -5,7 +5,6 @@ import ModelLoader from "./ModelLoader";
 import DemoData from "./DemoData";
 import ArchitecturePanel from "./ArchitecturePanel";
 import ComparePanel from "./ComparePanel";
-import CheckpointLoader from "./CheckpointLoader";
 import ExplorerControls from "./ExplorerControls";
 import TensorList from "./TensorList";
 import GenerationControls from "./GenerationControls";
@@ -48,7 +47,6 @@ export default function Sidebar() {
         <>
           <DemoData />
           <ModelLoader />
-          <CheckpointLoader />
           <ComparePanel />
           <ArchitecturePanel />
           <ModelInfoPane />

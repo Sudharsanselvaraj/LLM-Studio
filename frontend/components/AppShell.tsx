@@ -1,26 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useStore, restoreFromUrl } from "@/lib/store";
 import SceneLoader from "./SceneLoader";
 import PlaybackEngine from "./PlaybackEngine";
 import TopBar from "./ui/TopBar";
 import Sidebar from "./ui/Sidebar";
 import RightPanel from "./ui/RightPanel";
-import GenerationTopControls from "./ui/GenerationTopControls";
-import EvolutionTimeline from "./ui/EvolutionTimeline";
+import BottomBar from "./ui/BottomBar";
+import PredictionTimeline from "./ui/PredictionTimeline";
 import PredictionGame from "./ui/PredictionGame";
 import DebugInspector from "./ui/DebugInspector";
 import HeadInspector from "./ui/HeadInspector";
 import DataExport from "./ui/DataExport";
 import TimingReadout from "./ui/TimingReadout";
 import ConfigDiff from "./ui/ConfigDiff";
-import AblationPanel from "./ui/AblationPanel";
 import TokenDetailView from "./ui/TokenDetailView";
 import KvCacheTimeline from "./ui/KvCacheTimeline";
 import DistributionPanel from "./ui/DistributionPanel";
 import TileView from "./ui/TileView";
-import TokenStrip from "./ui/TokenStrip";
 import DebuggerPane from "./ui/DebuggerPane";
 import { fmtShape } from "@/lib/format";
 import { roleLabel } from "@/lib/tensorName";
@@ -49,6 +47,26 @@ export default function AppShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Auto-load demo trace on first load when no backend is available.
+  const demoLoaded = useRef(false);
+  const archLoading = useStore((s) => s.archLoading);
+  const archError = useStore((s) => s.archError);
+  const loadTrace = useStore((s) => s.loadTrace);
+  useEffect(() => {
+    if (demoLoaded.current) return;
+    if (archLoading || !archError) return;
+    if (mode !== "explorer") return; // URL-specified mode means intentional
+    demoLoaded.current = true;
+    (async () => {
+      const res = await fetch("/demo/hello-world.json");
+      if (!res.ok) return;
+      const trace = await res.json();
+      await loadTrace(trace);
+      // Start mid-replay so user sees motion immediately.
+      useStore.setState({ playIndex: 3, isPlaying: true, opPlaying: true });
+    })();
+  }, [archLoading, archError, mode, loadTrace]);
+
   const hov = hovName ? arch?.tensors.find((t) => t.name === hovName) : null;
 
   return (
@@ -71,18 +89,15 @@ export default function AppShell() {
         ) : (
           <SceneLoader />
         )}
-        {mode === "generation" && <GenerationTopControls />}
-        {mode === "generation" && <TokenStrip />}
-        {mode === "walkthrough" && <EvolutionTimeline />}
+        {mode === "walkthrough" && <PredictionTimeline />}
         {mode === "walkthrough" && <TokenDetailView />}
-        {mode === "generation" && <KvCacheTimeline />}
         {devMode && <DebugInspector />}
         {devMode && <HeadInspector />}
         {devMode && <DataExport />}
         {devMode && <TimingReadout />}
         {devMode && <DistributionPanel />}
         {devMode && <ConfigDiff />}
-        {devMode && <AblationPanel />}
+
         {mode === "explorer" && hov && mouse.inside && (
           <div
             className="hover-tip"
@@ -107,6 +122,7 @@ export default function AppShell() {
           </div>
         )}
       </div>
+      <BottomBar />
       <RightPanel />
     </div>
   );

@@ -5,7 +5,7 @@ import { useStore } from "@/lib/store";
 import type { LogitLensEntry } from "@/lib/types";
 import { CHAPTERS } from "@/lib/walkthrough";
 
-export default function EvolutionTimeline() {
+export default function PredictionTimeline() {
   const data = useStore((s) => s.data);
   const chapterIdx = useStore((s) => s.wtChapter);
   const prev = useStore((s) => s.prevChapter);
@@ -55,7 +55,7 @@ export default function EvolutionTimeline() {
   return (
     <div className="timeline-panel">
       <div className="tl-header">
-        <span className="tl-title">Evolution Timeline</span>
+        <span className="tl-title">Prediction Timeline</span>
         <span className="tl-subtitle">
           Layer-by-layer prediction evolution at position{" "}
           <strong>{clampedPos}</strong> &ldquo;{tokens[clampedPos]?.text ?? "?"}&rdquo;

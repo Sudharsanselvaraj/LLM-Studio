@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useThree } from "@react-three/fiber";
+import { Text, Billboard } from "@react-three/drei";
 import gsap from "gsap";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 
@@ -11,20 +12,11 @@ import TokenizerDistrict from "../districts/TokenizerDistrict";
 import EmbeddingDistrict from "../districts/EmbeddingDistrict";
 import AttentionDistrict from "../districts/AttentionDistrict";
 import TransformerStack, {
-  type OpKind,
   type StackDims,
 } from "./TransformerStack";
+import { KIND_COLORS, type OpKind } from "@/lib/sceneColors";
 
 const GAP = 3.4;
-
-// Per-kind colour inside the 3D canvas (the one allowed colour axis).
-const KIND_COLOR: Record<string, [number, number, number]> = {
-  norm: [0.55, 0.6, 0.72],
-  mlp: [1, 0.6, 0.3],
-  output: [0.9, 0.4, 0.95],
-  attn: [0.4, 0.8, 1],
-  embedding: [0.6, 0.4, 0.95],
-};
 
 /**
  * The real Qwen block geometry (same component as Generation) framed for a
@@ -32,7 +24,13 @@ const KIND_COLOR: Record<string, [number, number, number]> = {
  * so the reading pane and the 3D always describe the same real operation.
  * Dimensions come from the real loaded model, not the scale selector.
  */
-function WalkStack({ kind }: { kind: OpKind | null }) {
+function WalkStack({ kind, hoveredLayer, hoveredKind, onHover, onClick }: {
+  kind: OpKind | null;
+  hoveredLayer?: number | null;
+  hoveredKind?: OpKind | null;
+  onHover?: (layer: number | null, kind: OpKind | null) => void;
+  onClick?: (layer: number, kind: OpKind) => void;
+}) {
   const m = useStore((s) => s.arch?.metadata);
   const nLayers = m?.num_layers ?? 24;
   const dims: StackDims = useMemo(
@@ -55,7 +53,7 @@ function WalkStack({ kind }: { kind: OpKind | null }) {
         : kind === "embedding"
           ? -1
           : mid;
-  const opColor = (kind && KIND_COLOR[kind]) || [0.5, 0.6, 0.8];
+  const opColor = (kind && KIND_COLORS[kind]) || [0.5, 0.6, 0.8];
 
   return (
     <TransformerStack
@@ -66,6 +64,10 @@ function WalkStack({ kind }: { kind: OpKind | null }) {
       opColor={opColor}
       statNorm={0.7}
       gap={GAP}
+      hoveredLayer={hoveredLayer}
+      hoveredKind={hoveredKind}
+      onHover={onHover}
+      onClick={onClick}
     />
   );
 }
@@ -73,8 +75,32 @@ function WalkStack({ kind }: { kind: OpKind | null }) {
 export default function WalkthroughScene() {
   const chapterIdx = useStore((s) => s.wtChapter);
   const archMeta = useStore((s) => s.arch?.metadata);
+  const data = useStore((s) => s.data);
+  const loading = useStore((s) => s.loading);
   const ch = CHAPTERS[Math.min(chapterIdx, CHAPTERS.length - 1)];
   const nLayers = archMeta?.num_layers ?? 24;
+  const [hoveredLayer, setHoveredLayer] = useState<number | null>(null);
+
+  // Gate on data — never render an empty canvas or placeholders.
+  if (!data) {
+    return (
+      <Billboard>
+        <Text
+          fontSize={0.9}
+          color="#5b678c"
+          anchorX="center"
+          anchorY="middle"
+          maxWidth={14}
+          textAlign="center"
+        >
+          {loading
+            ? "Running forward pass…\n(loading real data)"
+            : "No data yet.\nClick a chapter to load the example."}
+        </Text>
+      </Billboard>
+    );
+  }
+  const [hoveredKind, setHoveredKind] = useState<OpKind | null>(null);
 
   const { camera } = useThree();
   const controls = useThree((s) => s.controls) as OrbitControlsImpl | null;
@@ -140,6 +166,15 @@ export default function WalkthroughScene() {
     };
   }, [framing, camera, controls]);
 
+  const hoverProps = {
+    hoveredLayer,
+    hoveredKind,
+    onHover: (layer: number | null, kind: OpKind | null) => {
+      setHoveredLayer(layer);
+      setHoveredKind(kind);
+    },
+  };
+
   switch (ch.scene) {
     case "tokenizer":
       return <TokenizerDistrict />;
@@ -148,12 +183,12 @@ export default function WalkthroughScene() {
     case "attention":
       return <AttentionDistrict />;
     case "norm":
-      return <WalkStack kind="norm" />;
+      return <WalkStack kind="norm" {...hoverProps} />;
     case "mlp":
-      return <WalkStack kind="mlp" />;
+      return <WalkStack kind="mlp" {...hoverProps} />;
     case "softmax":
-      return <WalkStack kind="output" />;
+      return <WalkStack kind="output" {...hoverProps} />;
     default:
-      return <WalkStack kind={null} />;
+      return <WalkStack kind={null} {...hoverProps} />;
   }
 }

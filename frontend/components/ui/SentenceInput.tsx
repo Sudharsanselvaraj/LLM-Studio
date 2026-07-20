@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
+import { PRESET_PROMPTS } from "@/lib/prompts";
 
-const DEFAULT_SENTENCE = "The cat sat on the mat.";
+const DEFAULT_SENTENCE = PRESET_PROMPTS[0].text;
 
 export default function SentenceInput() {
   const [text, setText] = useState(DEFAULT_SENTENCE);
@@ -23,6 +24,11 @@ export default function SentenceInput() {
     if (trimmed.length > 0 && !loading) analyze(trimmed);
   };
 
+  const pick = (s: string) => {
+    setText(s);
+    if (!loading) analyze(s);
+  };
+
   return (
     <div>
       <form className="sentence-form" onSubmit={onSubmit}>
@@ -36,6 +42,18 @@ export default function SentenceInput() {
           {loading ? "Analyzing…" : "Analyze"}
         </button>
       </form>
+      <div className="sentence-presets">
+        {PRESET_PROMPTS.map((p) => (
+          <button
+            key={p.label}
+            className="chip-btn preset-chip"
+            onClick={() => pick(p.text)}
+            title={p.note}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
       {error && <div className="error">⚠ {error}</div>}
     </div>
   );

@@ -1,54 +1,33 @@
 "use client";
 
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Billboard, Text } from "@react-three/drei";
-import { Color, Vector3 } from "three";
+import { Billboard, Text, Line } from "@react-three/drei";
+import { Color, Vector3, QuadraticBezierCurve3, CatmullRomCurve3 } from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 
 import { useStore } from "@/lib/store";
 import { activeLayerOf, phaseInfo } from "@/lib/playback";
-import TransformerStack, { type OpKind, type StackDims } from "./TransformerStack";
+import TransformerStack, { type StackDims } from "./TransformerStack";
+import KvCacheVolume from "./KvCacheVolume";
+import { opColorOf, opKindOf, type OpKind } from "@/lib/sceneColors";
 
-// The layer/op currently being walked lights up in the op's colour; the follow
-// camera tracks it. All geometry proportions come from the real model dims (see
-// TransformerStack); the highlight sequence comes from the real op catalog.
-const OP_COLORS: Record<string, [number, number, number]> = {
-  embedding: [0.6, 0.4, 0.95],
-  norm: [0.55, 0.6, 0.72],
-  "attn.q": [0.3, 0.7, 1],
-  "attn.k": [0.3, 0.85, 0.9],
-  "attn.v": [0.3, 0.9, 0.6],
-  attention: [0.4, 0.8, 1],
-  "attn.o": [0.6, 0.7, 1],
-  "mlp.gate": [1, 0.72, 0.3],
-  "mlp.up": [1, 0.6, 0.3],
-  "mlp.down": [0.95, 0.45, 0.5],
-  output: [0.9, 0.4, 0.95],
-};
-const GAP = 3.4; // block height — roomy enough that norm/attn/norm/mlp read distinctly
-const KV_CAP = 40; // most position cells we ever draw (prompt cap)
+const GAP = 3.4;
+const KV_CAP = 40;
+
 const tmp = new Vector3();
-
-/** Real op_key → which distinctive geometry lights up. */
-function opKindOf(opKey: string | undefined): OpKind | null {
-  if (!opKey) return null;
-  if (opKey === "embedding") return "embedding";
-  if (opKey === "output") return "output";
-  if (opKey === "attention" || opKey.startsWith("attn")) return "attn";
-  if (opKey.startsWith("mlp")) return "mlp";
-  if (opKey.startsWith("norm") || opKey === "norm") return "norm";
-  return null;
-}
 
 export default function GenerationScene() {
   const meta = useStore((s) => s.genMeta);
   const archMeta = useStore((s) => s.arch?.metadata);
   const opIndex = useStore((s) => s.opIndex);
+  const setOpIndex = useStore((s) => s.setOpIndex);
   const followMode = useStore((s) => s.followMode);
   const view2D = useStore((s) => s.view2D);
   const playIndex = useStore((s) => s.playIndex);
   const frame = useStore((s) => (s.playIndex >= 0 ? s.genFrames[s.playIndex] : null));
+  const [hoveredLayer, setHoveredLayer] = useState<number | null>(null);
+  const [hoveredKind, setHoveredKind] = useState<OpKind | null>(null);
 
   const nLayers = meta?.num_layers ?? 24;
   const catalog = meta?.op_catalog ?? [];
@@ -94,7 +73,7 @@ export default function GenerationScene() {
   }, [controls, followMode]);
 
   const opCol: [number, number, number] = op
-    ? OP_COLORS[op.op_key] ?? [0.5, 0.6, 0.8]
+    ? opColorOf(op.op_key, activeKind ?? "norm")
     : [0.5, 0.6, 0.8];
 
   useFrame(() => {
@@ -109,6 +88,20 @@ export default function GenerationScene() {
 
   const activeY = activeLayer != null ? -(activeLayer + 1) * GAP : 0;
 
+  const handleSceneHover = (layer: number | null, kind: OpKind | null) => {
+    setHoveredLayer(layer);
+    setHoveredKind(kind);
+  };
+
+  const handleSceneClick = (layer: number, kind: OpKind) => {
+    if (catalog.length === 0) return;
+    const idx = catalog.findIndex((op) => {
+      const opLayer = op.layer ?? (kind === "embedding" ? -1 : kind === "output" ? nLayers : null);
+      return opLayer === layer && opKindOf(op.op_key) === kind;
+    });
+    if (idx >= 0) setOpIndex(idx);
+  };
+
   return (
     <group>
       <TransformerStack
@@ -119,6 +112,10 @@ export default function GenerationScene() {
         opColor={opCol}
         statNorm={statNorm}
         gap={GAP}
+        hoveredLayer={hoveredLayer}
+        hoveredKind={hoveredKind}
+        onHover={handleSceneHover}
+        onClick={handleSceneClick}
       />
 
       {/* Stack endpoints labelled where the geometry begins/ends. */}
@@ -148,48 +145,115 @@ export default function GenerationScene() {
         </Billboard>
       )}
 
-      {/* KV-cache "new activity" strip: one cell per real position computed this
-          step. Pre-fill = a wide band over the whole prompt; decode = a single
-          cell (with the cached prefix shown dim behind it). This is the genuine
-          difference in work done, not a stylistic flourish. */}
+      {/* KV-cache as a spatial volume: per-layer grid of cached positions.
+          Pre-fill = warm wide band; decode = dim stale + bright new cell. */}
       {phase && activeLayer != null && (
-        <group position={[-6.4, activeY, 0]}>
-          {/* cached (reused, not recomputed) — dim */}
-          {phase.phase === "decode" &&
-            Array.from({ length: Math.min(phase.cacheLen, KV_CAP) }, (_, i) => (
-              <mesh key={"c" + i} position={[-0.24 * i - 0.5, 0, 0]}>
-                <boxGeometry args={[0.16, 0.16, 0.16]} />
-                <meshStandardMaterial
-                  color="#3a3d45"
-                  emissive="#3a3d45"
-                  emissiveIntensity={0.2}
-                  roughness={0.8}
+        <KvCacheVolume
+          nLayers={nLayers}
+          gap={GAP}
+          activeLayer={activeLayer}
+        />
+      )}
+
+      {/* Attention arcs from active attention layer to tokens.
+          Only shown during decode when an attention op is active and real KV positions exist. */}
+      {activeLayer != null && activeKind === "attn" && phase && positions > 0 && (
+        <group>
+          {(() => {
+            const nh = dims.numHeads;
+            const kvh = dims.kvHeads;
+            const kg = Math.max(1, Math.min(kvh, nh));
+            const pg = Math.max(1, Math.round(nh / kg));
+            const groupGap = 0.55;
+            const groupSpan = (Math.PI * 2) / kg - groupGap;
+            const Rc = 1.25;
+            return Array.from({ length: Math.min(nh, 14) }, (_, h) => {
+            const g = Math.floor(h / pg);
+            const withinN = Math.min(pg, nh - g * pg);
+            const i = h - g * pg;
+            const gStart = g * ((Math.PI * 2) / kg) + groupGap / 2;
+            const a = withinN > 1 ? gStart + (i / (withinN - 1)) * groupSpan : gStart + groupSpan / 2;
+            const fromX = Rc * Math.sin(a);
+            const fromZ = Rc * Math.cos(a);
+
+            // Show arcs to the most-attended positions (simulated typical pattern)
+            const attendedPositions = [];
+            const n = Math.min(positions, 16);
+            for (let p = 0; p < n; p++) {
+              const relP = p / Math.max(1, n - 1);
+              const weight = h === 0
+                ? (p === n - 1 ? 0.05 : Math.exp(-3 * relP) * 0.7 + 0.08 * (1 - relP))
+                : (p === 0 ? 0.6 : Math.exp(-2 * relP) * 0.15 + 0.05);
+              if (weight < 0.08) continue;
+              attendedPositions.push({ pos: p, weight });
+            }
+
+            const headColor = new Color().setHSL(h / dims.numHeads, 0.7, 0.55);
+
+            return attendedPositions.map(({ pos: p, weight }) => {
+              const toX = -6.4 + 0.24 * p + 0.5;
+              const toY = activeY;
+              const start = new Vector3(fromX, activeY, fromZ);
+              const end = new Vector3(toX, toY, 0);
+              const mid = start.clone().add(end).multiplyScalar(0.5);
+              mid.y += Math.abs(activeY - toY) * 0.2 + 1.2;
+              mid.z *= 0.3;
+              const curve = new QuadraticBezierCurve3(start, mid, end);
+              const pts = curve.getPoints(24);
+              const opacity = 0.15 + weight * 0.7;
+              return (
+                <Line
+                  key={`arc-${h}-${p}`}
+                  points={pts}
+                  color={headColor}
+                  lineWidth={1}
+                  transparent
+                  opacity={opacity}
                 />
+              );
+            });
+            });
+          })()}
+        </group>
+      )}
+
+      {/* RoPE twist: a helical curve representing the rotary position encoding
+          applied to Q/K at each attention layer. The spiral grows with position
+          index, showing how RoPE encodes relative position through rotation. */}
+      {activeKind === "attn" && activeLayer != null && (
+        <group position={[3.6, activeY, 0]}>
+          <Line
+            points={(() => {
+              const pts: Vector3[] = [];
+              const turns = 2.5;
+              const r = 0.35;
+              const h = 1.6;
+              const steps = 80;
+              for (let i = 0; i <= steps; i++) {
+                const t = (i / steps) * turns * Math.PI * 2;
+                const y = (i / steps - 0.5) * h;
+                pts.push(new Vector3(r * Math.cos(t), y, r * Math.sin(t)));
+              }
+              return pts;
+            })()}
+            color="#6fa8dc"
+            lineWidth={1}
+            transparent
+            opacity={0.5}
+          />
+          {Array.from({ length: 4 }, (_, i) => {
+            const t = (i / 4) * 2.5 * Math.PI * 2;
+            const y = (i / 4 - 0.5) * 1.6;
+            return (
+              <mesh key={i} position={[0.35 * Math.cos(t), y, 0.35 * Math.sin(t)]}>
+                <sphereGeometry args={[0.04, 6, 6]} />
+                <meshBasicMaterial color="#6fa8dc" transparent opacity={0.3 + i * 0.15} />
               </mesh>
-            ))}
-          {/* newly computed this step — bright */}
-          {Array.from({ length: positions }, (_, i) => (
-            <mesh key={"n" + i} position={[0.24 * i + 0.5, 0, 0]}>
-              <boxGeometry args={[0.18, 0.18, 0.18]} />
-              <meshStandardMaterial
-                color="#e8ecf4"
-                emissive="#e8ecf4"
-                emissiveIntensity={1.1}
-                roughness={0.4}
-              />
-            </mesh>
-          ))}
-          <Billboard position={[0, 0.7, 0]}>
-            <Text
-              fontSize={0.32}
-              anchorX="center"
-              color={phase.phase === "prefill" ? "#e6ecff" : "#9fb4d6"}
-              outlineWidth={0.015}
-              outlineColor="#000000"
-            >
-              {phase.phase === "prefill"
-                ? `Pre-fill · ${phase.positions} tokens`
-                : `Decode · +1 (${phase.cacheLen} cached)`}
+            );
+          })}
+          <Billboard position={[0.9, 0.9, 0]}>
+            <Text fontSize={0.28} anchorX="left" color="#6fa8dc" outlineWidth={0.01} outlineColor="#000000">
+              RoPE
             </Text>
           </Billboard>
         </group>

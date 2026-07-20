@@ -16,7 +16,15 @@ function label(t: Token): string {
   return trimmed.length === 0 ? "␣" : trimmed;
 }
 
-function chipColor(i: number): Color {
+/** Detect byte-fallback tokens — fragments from non-Latin script tokenization.
+ *  Qwen's BPE emits byte-level pieces like <0xE0>, <0xA4>, <0x89> for characters
+ *  outside its main vocabulary. These tokens have piece fields starting with '<0x'. */
+function isByteFallback(t: Token): boolean {
+  return t.piece.startsWith("<0x") || t.id > 150000;
+}
+
+function chipColor(i: number, bytefallback: boolean): Color {
+  if (bytefallback) return new Color().setHSL(0.08, 0.65, 0.45);
   return new Color().setHSL((i * 0.13) % 1, 0.5, 0.55);
 }
 
@@ -68,18 +76,22 @@ export default function TokenizerDistrict() {
         </Text>
         <Text position={[0, -0.9, 0]} fontSize={0.28} color="#8a97bd" anchorX="center">
           tokenizer → {n} tokens
+          {tokens.filter(isByteFallback).length > 0 && (
+            ` · ${tokens.filter(isByteFallback).length} byte-fallback`
+          )}
         </Text>
       </Billboard>
 
       {tokens.map((t, i) => {
-        const c = chipColor(i);
+        const bf = isByteFallback(t);
+        const c = chipColor(i, bf);
         return (
           <group key={i} ref={(el) => void (refs.current[i] = el)}>
             <RoundedBox args={[2.0, 1.0, 0.35]} radius={0.16} smoothness={3}>
               <meshStandardMaterial
                 color={c}
                 emissive={c}
-                emissiveIntensity={0.25}
+                emissiveIntensity={bf ? 0.35 : 0.25}
                 roughness={0.5}
                 metalness={0.1}
               />
@@ -94,6 +106,17 @@ export default function TokenizerDistrict() {
               >
                 {label(t)}
               </Text>
+              {bf && (
+                <Text
+                  position={[0, -0.1, 0.24]}
+                  fontSize={0.18}
+                  anchorX="center"
+                  anchorY="top"
+                  color="#f5b84a"
+                >
+                  byte-fallback
+                </Text>
+              )}
             </Billboard>
             <Text
               position={[0, -0.85, 0]}

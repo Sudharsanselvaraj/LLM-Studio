@@ -86,14 +86,24 @@ export default function GenerationPanel() {
           </div>
           <div className="gp-op">{op.label}</div>
         </div>
-        <div className="gp-params">
+        <div
+          className="gp-params"
+          title="Cumulative parameters used so far in this forward pass. A synthetic trace would show random jumps; only a real execution of real weights produces counts that sum to the model's exact total."
+        >
           <span>PARAMETERS USED</span>
           <b>{fmtCount(op.cumulative_params)}</b>
         </div>
       </div>
 
       {phase && (
-        <div className={"gp-phase " + phase.phase}>
+        <div
+          className={"gp-phase " + phase.phase}
+          title={
+            phase.phase === "prefill"
+              ? "Pre-fill: computing prompt tokens in parallel to build the KV cache. Synthetic demos skip this phase or fake the cache growth — here every cached position is a real token."
+              : "Decode: generating one token at a time, reusing the KV cache built during pre-fill. The growing cache length matches real model execution step-for-step."
+          }
+        >
           <b>{phase.label}</b> · {phase.detail}
         </div>
       )}
@@ -118,7 +128,10 @@ export default function GenerationPanel() {
           >
             ›
           </button>
-          <span className="gp-crumb-idx">
+          <span
+            className="gp-crumb-idx"
+            title="Each op is a real matrix operation executed by the loaded model in order. Synthetic traces do not track exact operation boundaries or counts (e.g., op 47/243 = RMSNorm forward)."
+          >
             op {opIndex + 1} / {catalog.length}
           </span>
         </div>
@@ -149,7 +162,10 @@ export default function GenerationPanel() {
           )}
         </div>
 
-        <div className="gp-nparams">
+        <div
+          className="gp-nparams"
+          title="The exact parameter count for this specific operation, drawn from the loaded model's real weight tensors. Synthetic tools assign arbitrary or rounded sizes."
+        >
           <span>NUMBER OF PARAMETERS</span>
           <b>{op.param_count.toLocaleString()}</b>
         </div>

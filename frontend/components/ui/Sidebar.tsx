@@ -10,6 +10,8 @@ import ExplorerControls from "./ExplorerControls";
 import TensorList from "./TensorList";
 import GenerationControls from "./GenerationControls";
 import WalkthroughPane from "./WalkthroughPane";
+import TopologyView from "./TopologyView";
+import ModelInfoPane from "./ModelInfoPane";
 
 function Legend() {
   return (
@@ -49,7 +51,9 @@ export default function Sidebar() {
           <CheckpointLoader />
           <ComparePanel />
           <ArchitecturePanel />
+          <ModelInfoPane />
           <ExplorerControls />
+          <TopologyView />
           <Legend />
           <TensorList />
         </>

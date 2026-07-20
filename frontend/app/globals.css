@@ -2753,3 +2753,40 @@ code {
   color: #7c7c7c;
   margin-top: 2px;
 }
+
+/* --- Topology View (Phase 2) ----------------------------------------------- */
+.topo-panel {
+  display: flex;
+  flex-direction: column;
+}
+.topo-svg {
+  width: 100%;
+  height: auto;
+  margin-bottom: 4px;
+}
+
+/* --- Model Info Pane (Phase 2) --------------------------------------------- */
+.mi-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mi-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.mi-label {
+  font-size: 10px;
+  color: #7c7c7c;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.mi-value {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text);
+  text-align: right;
+}

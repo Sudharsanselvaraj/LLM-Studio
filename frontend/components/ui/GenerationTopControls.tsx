@@ -24,6 +24,9 @@ export default function GenerationTopControls() {
   const view2D = useStore((s) => s.view2D);
   const toggleView2D = useStore((s) => s.toggleView2D);
   const hasCatalog = useStore((s) => (s.genMeta?.op_catalog?.length ?? 0) > 0);
+  const genStatus = useStore((s) => s.genStatus);
+  const traceSource = useStore((s) => s.traceSource);
+  const downloadTrace = useStore((s) => s.downloadTrace);
 
   // Live KV-cache phase for the token currently being replayed. Select raw
   // values only — phaseInfo builds a fresh object, so calling it inside the
@@ -80,6 +83,21 @@ export default function GenerationTopControls() {
       >
         {view2D ? "3D View" : "2D View"}
       </button>
+
+      {genStatus === "done" && traceSource === "live" && (
+        <button
+          className="chip-btn"
+          onClick={downloadTrace}
+          title="Download this generation as a .tokenprint.json trace file"
+        >
+          ↓ trace
+        </button>
+      )}
+      {traceSource === "file" && (
+        <span className="phase-badge recorded" title="Replaying from a recorded trace file">
+          recorded
+        </span>
+      )}
 
       <button
         className={"chip-btn" + (showSettings ? " on" : "")}

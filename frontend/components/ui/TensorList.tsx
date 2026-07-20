@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
-import { fmtShape } from "@/lib/format";
+import { fmtShape, middleTruncate } from "@/lib/format";
 
 export default function TensorList() {
   const arch = useStore((s) => s.arch);
@@ -47,7 +47,7 @@ export default function TensorList() {
             onClick={() => setSelected(t.name)}
           >
             <span className="tensor-name" title={t.name}>
-              {t.name}
+              {middleTruncate(t.name)}
             </span>
             <span className="tensor-shape">{fmtShape(t.shape)}</span>
           </div>

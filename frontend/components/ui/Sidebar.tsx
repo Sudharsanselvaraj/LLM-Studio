@@ -2,7 +2,10 @@
 
 import { useStore } from "@/lib/store";
 import ModelLoader from "./ModelLoader";
+import DemoData from "./DemoData";
 import ArchitecturePanel from "./ArchitecturePanel";
+import ComparePanel from "./ComparePanel";
+import CheckpointLoader from "./CheckpointLoader";
 import ExplorerControls from "./ExplorerControls";
 import TensorList from "./TensorList";
 import GenerationControls from "./GenerationControls";
@@ -33,16 +36,19 @@ export default function Sidebar() {
 
   return (
     <div className="sidebar">
-      {mode === "explorer" && <ModelLoader />}
       {mode === "generation" && (
         <div className="side-section">
           <div className="side-title">Prompt</div>
           <GenerationControls />
         </div>
       )}
-      <ArchitecturePanel />
       {mode === "explorer" && (
         <>
+          <DemoData />
+          <ModelLoader />
+          <CheckpointLoader />
+          <ComparePanel />
+          <ArchitecturePanel />
           <ExplorerControls />
           <Legend />
           <TensorList />

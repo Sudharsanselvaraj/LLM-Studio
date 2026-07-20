@@ -1,13 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useStore } from "@/lib/store";
+import { useStore, restoreFromUrl } from "@/lib/store";
 import SceneLoader from "./SceneLoader";
 import PlaybackEngine from "./PlaybackEngine";
 import TopBar from "./ui/TopBar";
 import Sidebar from "./ui/Sidebar";
 import RightPanel from "./ui/RightPanel";
 import GenerationTopControls from "./ui/GenerationTopControls";
+import LogitLensPanel from "./ui/LogitLensPanel";
+import EvolutionTimeline from "./ui/EvolutionTimeline";
+import PredictionGame from "./ui/PredictionGame";
+import DebugInspector from "./ui/DebugInspector";
+import HeadInspector from "./ui/HeadInspector";
+import DataExport from "./ui/DataExport";
+import TimingReadout from "./ui/TimingReadout";
+import ConfigDiff from "./ui/ConfigDiff";
+import AblationPanel from "./ui/AblationPanel";
+import TokenDetailView from "./ui/TokenDetailView";
+import KvCacheTimeline from "./ui/KvCacheTimeline";
 import TokenStrip from "./ui/TokenStrip";
 import { fmtShape } from "@/lib/format";
 import { roleLabel } from "@/lib/tensorName";
@@ -17,10 +28,17 @@ export default function AppShell() {
   const arch = useStore((s) => s.arch);
   const mode = useStore((s) => s.mode);
   const hovName = useStore((s) => s.hoveredTensor);
+  const devMode = useStore((s) => s.devMode);
   const [mouse, setMouse] = useState({ x: 0, y: 0, inside: false });
 
   // Load the live Qwen model's architecture once on mount.
   useEffect(() => {
+    // Restore snapshot URL params first.
+    const snapshot = restoreFromUrl();
+    if (snapshot.mode) useStore.getState().setMode(snapshot.mode);
+    if (snapshot.playIndex !== undefined) useStore.getState().setPlayIndex(snapshot.playIndex);
+    if (snapshot.opIndex !== undefined) useStore.getState().setOpIndex(snapshot.opIndex);
+    if (snapshot.wtChapter !== undefined) useStore.getState().setWtChapter(snapshot.wtChapter);
     if (!arch) loadArchitecture();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -43,6 +61,19 @@ export default function AppShell() {
         <SceneLoader />
         {mode === "generation" && <GenerationTopControls />}
         {mode === "generation" && <TokenStrip />}
+        {mode === "generation" && <PredictionGame />}
+        {mode === "walkthrough" && <LogitLensPanel />}
+        {mode === "walkthrough" && <EvolutionTimeline />}
+        {mode === "walkthrough" && <LogitLensPanel />}
+        {mode === "walkthrough" && <TokenDetailView />}
+        {mode === "generation" && <KvCacheTimeline />}
+        {mode === "generation" && <PredictionGame />}
+        {devMode && <DebugInspector />}
+        {devMode && <HeadInspector />}
+        {devMode && <DataExport />}
+        {devMode && <TimingReadout />}
+        {devMode && <ConfigDiff />}
+        {devMode && <AblationPanel />}
         {mode === "explorer" && hov && mouse.inside && (
           <div
             className="hover-tip"

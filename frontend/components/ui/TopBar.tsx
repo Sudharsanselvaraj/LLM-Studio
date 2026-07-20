@@ -2,7 +2,9 @@
 
 import { useStore } from "@/lib/store";
 import { fmtCount } from "@/lib/format";
+import { useSnapshotUrl } from "@/lib/useSnapshotUrl";
 import type { Mode } from "@/lib/types";
+import { useState } from "react";
 
 const MODES: { id: Mode; label: string }[] = [
   { id: "explorer", label: "Architecture" },
@@ -15,6 +17,14 @@ export default function TopBar() {
   const setMode = useStore((s) => s.setMode);
   const arch = useStore((s) => s.arch);
   const m = arch?.metadata;
+  const { share } = useSnapshotUrl();
+
+  const [copied, setCopied] = useState(false);
+  const handleShare = () => {
+    share();
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <div className="topbar">
@@ -54,14 +64,17 @@ export default function TopBar() {
               </span>
             ) : null}
             <span className="tstat">{arch?.tensor_count} tensors</span>
-            <span className="tstat accent">
-              {m.quantization ?? m.torch_dtype ?? ""}
-            </span>
-          </>
-        ) : (
-          <span className="tstat muted">loading model…</span>
-        )}
-      </div>
+          <span className="tstat accent">
+                {m.quantization ?? m.torch_dtype ?? ""}
+              </span>
+            </>
+          ) : (
+            <span className="tstat muted">loading model…</span>
+          )}
+          <button className="share-btn" onClick={handleShare} title="Copy snapshot URL">
+            {copied ? "✓ Copied" : "Share"}
+          </button>
+        </div>
     </div>
   );
 }

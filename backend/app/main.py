@@ -1,9 +1,13 @@
 """FastAPI application for NeuroScope.
 
-Phase 1 exposes:
+Endpoints:
   * GET  /health      — liveness + whether the model is loaded
   * GET  /model-info  — model metadata (layers, heads, hidden size, device)
   * POST /analyze     — real attention data for a sentence
+  * GET  /architecture — real tensor list (Explorer data source)
+  * WS   /ws/generate — streamed greedy generation
+  * GET  /trace       — download the last recorded generation as a JSON trace file
+  * POST /trace/replay — upload a trace JSON and replay it to the caller
 
 The model is loaded ONCE at startup via the lifespan handler, never per request.
 """
@@ -16,15 +20,22 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 
+from .ablation import Ablation
+from .debug import DebugCapture
 from .model import ModelEngine, TokenizedTooLong
-from .schemas import AnalyzeRequest, AnalyzeResponse, ModelInfo
+from .schemas import AblateRequest, AnalyzeRequest, AnalyzeResponse, ModelInfo
+from .trace import TraceRecorder, serialize_trace, parse_trace
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("neuroscope")
 
 # Single process-wide engine handle, populated in the lifespan handler.
 engine: ModelEngine | None = None
+
+# Last recorded trace (kept in memory; overwritten each generation).
+_last_trace: dict | None = None
 
 
 @asynccontextmanager
@@ -71,8 +82,15 @@ async def model_info() -> ModelInfo:
 
 
 @app.get("/architecture")
-async def architecture() -> dict:
-    """Real architecture metadata + tensor list (Explorer data source)."""
+async def architecture(model_id: str | None = None) -> dict:
+    """Real architecture metadata + tensor list (Explorer data source).
+
+    If ``model_id`` is provided, loads just the config for that HF model
+    (no weights) and returns its architecture metadata. Otherwise returns
+    the currently loaded model's metadata.
+    """
+    if model_id:
+        return _require_engine().checkpoint_architecture(model_id)
     return _require_engine().architecture()
 
 
@@ -90,6 +108,52 @@ async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
     return AnalyzeResponse(**data)
 
 
+# --------------------------------------------------------------------------- #
+# Debug snapshot (v0.4)
+# --------------------------------------------------------------------------- #
+
+@app.get("/debug/ops")
+async def debug_ops() -> list[dict]:
+    """List every captured module path available during a debug forward pass."""
+    return _require_engine().debug_ops
+
+
+@app.post("/debug/analyze")
+async def debug_analyze(req: AnalyzeRequest) -> dict:
+    """Same as POST /analyze but also returns a ``debug_snapshot`` dict mapping
+    module paths to sampled float arrays of their outputs."""
+    eng = _require_engine()
+    import anyio
+
+    try:
+        data = await anyio.to_thread.run_sync(eng.debug_analyze, req.sentence)
+    except TokenizedTooLong as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return data
+
+
+@app.post("/ablate/analyze")
+async def ablate_analyze(req: AblateRequest) -> dict:
+    """Run the forward pass with selected attention heads or layers ablated
+    (zeroed out). Returns the same structure as /analyze."""
+    eng = _require_engine()
+    import anyio
+
+    def run():
+        with Ablation(
+            eng.model.model,
+            zero_heads=req.zero_heads,
+            zero_layers=set(req.zero_layers),
+        ):
+            return eng.analyze(req.sentence)
+
+    try:
+        data = await anyio.to_thread.run_sync(run)
+    except TokenizedTooLong as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return data
+
+
 @app.websocket("/ws/generate")
 async def ws_generate(ws: WebSocket) -> None:
     """Stream a real greedy generation, one message per generated token.
@@ -98,7 +162,11 @@ async def ws_generate(ws: WebSocket) -> None:
     loop through a *bounded* queue, which gives automatic backpressure — if the
     browser can't keep up, the queue fills and the generating thread blocks,
     so memory never balloons.
+
+    When ``record_trace`` is set in the request, the full stream is tee'd into
+    an in-memory trace that can later be downloaded via ``GET /trace``.
     """
+    global _last_trace
     await ws.accept()
     if engine is None:
         await ws.send_json({"type": "error", "message": "Model is still loading."})
@@ -120,16 +188,29 @@ async def ws_generate(ws: WebSocket) -> None:
     top_k = req.get("top_k", 10)
     use_chat_template = bool(req.get("use_chat_template", True))
     include_catalog = bool(req.get("trace", False))
+    record_trace = bool(req.get("record_trace", False))
 
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue = asyncio.Queue(maxsize=32)
     SENTINEL = object()
 
+    # Trace recorder — captures frames when record_trace is requested.
+    recorder: TraceRecorder | None = None
+
     def worker() -> None:
+        nonlocal recorder
         try:
             for frame in engine.generate_steps(
                 prompt, max_new_tokens, top_k, use_chat_template, include_catalog
             ):
+                # Tee to the recorder for trace capture.
+                if recorder is not None:
+                    if frame.get("type") == "meta":
+                        recorder = TraceRecorder(frame)
+                    elif frame.get("type") == "token":
+                        recorder.add_frame(frame)
+                    elif frame.get("type") == "done":
+                        recorder.finalize(frame)
                 # .result() blocks this thread until the queue has room -> backpressure.
                 asyncio.run_coroutine_threadsafe(queue.put(frame), loop).result()
         except Exception as exc:  # surface generation errors to the client
@@ -138,6 +219,10 @@ async def ws_generate(ws: WebSocket) -> None:
             ).result()
         finally:
             asyncio.run_coroutine_threadsafe(queue.put(SENTINEL), loop)
+
+    # Only create a recorder if the client asked for it.
+    if record_trace:
+        recorder = TraceRecorder({"prompt": prompt})
 
     worker_future = loop.run_in_executor(None, worker)
     try:
@@ -149,8 +234,57 @@ async def ws_generate(ws: WebSocket) -> None:
     except WebSocketDisconnect:
         pass
     finally:
+        # Store the completed trace so it can be downloaded later.
+        if recorder is not None and recorder._done is not None:
+            _last_trace = recorder.build()
+            logger.info(
+                "Trace recorded: %d frames, prompt=%r",
+                len(recorder._frames),
+                prompt[:80],
+            )
         await worker_future
         try:
             await ws.close()  # graceful close frame after the stream ends
         except RuntimeError:
             pass  # already closed / client gone
+
+
+# --------------------------------------------------------------------------- #
+# Trace download
+# --------------------------------------------------------------------------- #
+
+@app.get("/trace")
+async def download_trace() -> Response:
+    """Download the last recorded generation as a JSON trace file.
+
+    Returns 404 if no trace has been recorded yet in this server session.
+    """
+    if _last_trace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No trace recorded yet. Start a generation with record_trace=true.",
+        )
+    body = serialize_trace(_last_trace)
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": 'attachment; filename="tokenprint-trace.json"',
+            "X-Trace-Version": str(_last_trace.get("trace_version", 1)),
+        },
+    )
+
+
+@app.post("/trace/replay")
+async def replay_trace(req_body: dict) -> dict:
+    """Accept a trace JSON and return the parsed/validated trace.
+
+    This lets the frontend validate a trace file it received via drag-and-drop
+    and load it into the store.  The full trace dict is returned so the frontend
+    can populate genMeta, genFrames, etc.
+    """
+    try:
+        trace = parse_trace(req_body)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return trace

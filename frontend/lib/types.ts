@@ -14,6 +14,12 @@ export interface Projection {
   embedding_explained_variance: number[];
 }
 
+export interface LogitLensEntry {
+  text: string;
+  token_id: number;
+  prob: number;
+}
+
 export interface AnalyzeResponse {
   sentence: string;
   model: string;
@@ -30,6 +36,9 @@ export interface AnalyzeResponse {
   hidden_states_3d: Record<string, [number, number, number][]>; // "layer" -> coords
   embedding_norms: number[];
   projection: Projection | null;
+
+  // Phase 4: logit lens (v0.3).
+  logit_lens: LogitLensEntry[][][]; // [layer][position][top-5]
 }
 
 export type District = "tokenizer" | "embedding" | "attention" | "generation";
@@ -43,6 +52,7 @@ export interface TensorInfo {
   dtype: string;
   n_params: number;
   offset?: number; // GGUF byte offset (optional)
+  ggmlType?: number; // raw ggml type enum (for dequantization)
   // parsed client-side from the name:
   layer?: number | null;
   role?: string;
@@ -130,3 +140,32 @@ export interface TokenFrame {
 }
 
 export type GenStatus = "idle" | "streaming" | "done" | "error";
+
+// --- Trace format (v0.2 Record & Replay) ---------------------------------- //
+export interface Trace {
+  trace_version: number;
+  created_at: string;
+  model: string;
+  meta: GenMeta;
+  frames: TokenFrame[];
+  done: { generated_text: string; total_steps: number } | null;
+}
+
+// --- v0.25 Hot-spot ranking ------------------------------------------------ //
+export interface HotSpot {
+  name: string;
+  score: number; // Mean Abs Diff per element
+  rank: number;
+}
+
+// --- v0.4 Debug snapshot --------------------------------------------------- //
+export interface DebugSnapshotEntry {
+  shape: number[];
+  dtype: string;
+  sample: number[];
+  n_elements: number;
+}
+
+export interface DebugSnapshot {
+  [modulePath: string]: DebugSnapshotEntry;
+}

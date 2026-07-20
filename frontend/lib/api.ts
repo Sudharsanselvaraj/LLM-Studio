@@ -1,4 +1,4 @@
-import type { AnalyzeResponse, ArchitectureData } from "./types";
+import type { AnalyzeResponse, ArchitectureData, DebugSnapshot, Trace } from "./types";
 
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -33,8 +33,111 @@ export async function analyzeSentence(
 }
 
 /** GET /architecture — real model metadata + tensor list (Explorer source). */
-export async function fetchArchitecture(): Promise<ArchitectureData> {
-  const res = await fetch(`${API_URL}/architecture`);
+export async function fetchArchitecture(
+  modelId?: string,
+): Promise<ArchitectureData> {
+  const url = modelId
+    ? `${API_URL}/architecture?model_id=${encodeURIComponent(modelId)}`
+    : `${API_URL}/architecture`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`Architecture request failed (${res.status})`);
+  return res.json();
+}
+
+// --------------------------------------------------------------------------- //
+// Trace (v0.2 Record & Replay)
+// --------------------------------------------------------------------------- //
+
+/**
+ * Fetch the last recorded trace from the backend for download.
+ * Returns null if no trace has been recorded yet.
+ */
+export async function fetchRecordedTrace(): Promise<Trace | null> {
+  try {
+    const res = await fetch(`${API_URL}/trace`);
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Trigger a browser download of the last recorded trace.
+ * Returns true on success, false if no trace was available.
+ */
+export async function downloadTrace(): Promise<boolean> {
+  const res = await fetch(`${API_URL}/trace`);
+  if (!res.ok) return false;
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "tokenprint-trace.json";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  return true;
+}
+
+/**
+ * Parse a .tokenprint.json file (drag-and-dropped or opened via file picker)
+ * into a validated Trace object.  Sends the raw JSON to the backend for
+ * validation, or parses it client-side if the backend is unreachable.
+ */
+export async function loadTraceFile(file: File): Promise<Trace> {
+  const text = await file.text();
+  const raw = JSON.parse(text);
+  // Try backend validation first.
+  try {
+    const res = await fetch(`${API_URL}/trace/replay`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(raw),
+    });
+    if (res.ok) return res.json();
+  } catch {
+    // Backend unavailable — fall through to client-side validation.
+  }
+  // Client-side fallback: basic shape check.
+  if (
+    typeof raw.trace_version !== "number" ||
+    raw.trace_version < 1 ||
+    !raw.meta ||
+    !Array.isArray(raw.frames)
+  ) {
+    throw new Error("Invalid trace file: missing required fields");
+  }
+  return raw as Trace;
+}
+
+// --------------------------------------------------------------------------- //
+// Debug snapshot (v0.4)
+// --------------------------------------------------------------------------- //
+
+export interface DebugAnalyzeResponse extends AnalyzeResponse {
+  debug_snapshot: DebugSnapshot;
+}
+
+/** POST /debug/analyze — same as /analyze but returns intermediate outputs. */
+export async function fetchDebugSnapshot(
+  sentence: string,
+): Promise<DebugAnalyzeResponse> {
+  const res = await fetch(`${API_URL}/debug/analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sentence }),
+  });
+  if (!res.ok) throw new Error(`Debug snapshot failed (${res.status})`);
+  return res.json();
+}
+
+/** GET /debug/ops — list all captured module paths. */
+export async function fetchDebugOps(): Promise<
+  { path: string; label: string; params: number; dtype: string | null }[]
+> {
+  const res = await fetch(`${API_URL}/debug/ops`);
+  if (!res.ok) return [];
   return res.json();
 }

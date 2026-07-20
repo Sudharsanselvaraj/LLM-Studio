@@ -209,6 +209,7 @@ function parseFrom(buf: ArrayBuffer, fileSize: number): ArchitectureData {
       dtype: typeName(ggmlType),
       n_params: nElements,
       offset,
+      ggmlType,
     });
   }
 

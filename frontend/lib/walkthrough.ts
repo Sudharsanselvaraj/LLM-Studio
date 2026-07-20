@@ -69,11 +69,11 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: "norm",
-    title: "Layer Norm",
+    title: "RMSNorm",
     scene: "norm",
     build: (d) => [
-      `Before each attention and MLP block, the vector is normalized. This model (Qwen) uses RMSNorm: divide by the root-mean-square of its components and scale by a learned gain γ.`,
-      `The residual stream flows straight down all ${d?.num_layers ?? "…"} layers; each block reads a normalized copy and adds its result back.`,
+      `Before each attention and MLP block, the vector is normalized. This model (Qwen) uses RMSNorm: divide by the root-mean-square of its components and scale by a learned gain γ. The two sublayers each have their own norm — input_layernorm before attention, post_attention_layernorm before MLP.`,
+      `The residual stream flows straight down all ${d?.num_layers ?? "?"} layers; each block reads a normalized copy and adds its result back.`,
     ],
   },
   {

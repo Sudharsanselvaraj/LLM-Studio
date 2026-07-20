@@ -69,7 +69,10 @@ export default function RightPanel() {
             </div>
           </>
         ) : (
-          <div className="rp-empty">Loading the real example forward pass…</div>
+          <div className="rp-empty">
+            <div className="wt-spinner" />
+            <span>Loading the real example forward pass…</span>
+          </div>
         )}
       </div>
     );

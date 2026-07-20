@@ -1,12 +1,24 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
 import { CHAPTERS, REF_MODELS } from "@/lib/walkthrough";
 import { fmtCount } from "@/lib/format";
 
+function useLoadingElapsed(loading: boolean): number {
+  const [start] = useState(() => Date.now());
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!loading) return;
+    const id = setInterval(() => setElapsed(Date.now() - start), 500);
+    return () => clearInterval(id);
+  }, [loading, start]);
+  return elapsed;
+}
+
 export default function WalkthroughPane() {
   const data = useStore((s) => s.data);
+  const loading = useStore((s) => s.loading);
   const analyze = useStore((s) => s.analyze);
   const chapterIdx = useStore((s) => s.wtChapter);
   const setWtChapter = useStore((s) => s.setWtChapter);
@@ -21,13 +33,18 @@ export default function WalkthroughPane() {
 
   // Load the real example forward pass once.
   useEffect(() => {
-    if (!data) analyze("The cat sat on the mat.");
+    if (!data && !loading) analyze("The cat sat on the mat.");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const idx = Math.min(chapterIdx, CHAPTERS.length - 1);
   const ch = CHAPTERS[idx];
-  const lines = ch.build(data);
+
+  // Gate on data — never render "…" placeholders.
+  const dataReady = !!data;
+  const elapsed = useLoadingElapsed(!data && loading);
+
+  const lines = data ? ch.build(data) : [];
 
   return (
     <div className="wt-pane">
@@ -49,7 +66,7 @@ export default function WalkthroughPane() {
         <button
           className="pb-btn"
           onClick={toggleWtPlay}
-          disabled={idx >= CHAPTERS.length - 1 && !wtPlaying}
+          disabled={!dataReady || (idx >= CHAPTERS.length - 1 && !wtPlaying)}
           title="Autoplay chapters"
         >
           {wtPlaying ? "⏸" : "▶"}
@@ -81,11 +98,33 @@ export default function WalkthroughPane() {
         ))}
       </select>
 
-      <div className="wt-body">
-        {lines.map((l, i) => (
-          <p key={i}>{l}</p>
-        ))}
-      </div>
+      {!dataReady && loading && (
+        <div className="wt-loading">
+          <div className="wt-spinner" />
+          <span>Running forward pass… {elapsed > 0 && `${(elapsed / 1000).toFixed(0)}s`}</span>
+          {elapsed > 8000 && (
+            <button className="chip-btn" onClick={() => analyze("The cat sat on the mat.")} style={{marginLeft:6}}>
+              Retry
+            </button>
+          )}
+        </div>
+      )}
+      {!dataReady && !loading && (
+        <div className="wt-loading">
+          <span>No data yet.</span>
+          <button className="chip-btn" onClick={() => analyze("The cat sat on the mat.")} style={{marginLeft:6}}>
+            Load example
+          </button>
+        </div>
+      )}
+
+      {dataReady && (
+        <div className="wt-body">
+          {lines.map((l, i) => (
+            <p key={i}>{l}</p>
+          ))}
+        </div>
+      )}
 
       <div className="side-title">Contents</div>
       <div className="wt-toc">

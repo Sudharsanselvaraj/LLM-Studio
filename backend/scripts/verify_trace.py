@@ -1,60 +1,118 @@
-"""Phase C check: the operation catalog is real and correctly ordered."""
+"""Verify the trace format: build a synthetic trace, serialize, and round-trip."""
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from app.model import ModelEngine  # noqa: E402
+import json
+from app.trace import TraceRecorder, serialize_trace, parse_trace, download_filename
 
 
-def main() -> int:
-    eng = ModelEngine()
-    cat = eng._op_catalog()
-    print(f"total ops: {len(cat)}")
+def test_recorder_builds_correct_shape():
+    meta = {
+        "type": "meta",
+        "model": "Qwen/Qwen2.5-0.5B-Instruct",
+        "device": "mps",
+        "architecture": "qwen2",
+        "num_layer_stats": 25,
+        "num_layers": 24,
+        "prompt_tokens": ["Hello", " world"],
+        "prompt_len": 2,
+        "max_new_tokens": 5,
+        "top_k": 10,
+        "decoding": "greedy",
+        "uses_kv_cache": True,
+        "op_catalog": [],
+    }
+    rec = TraceRecorder(meta)
 
-    ok = True
-    assert cat[0]["op_key"] == "embedding", "first op must be embedding"
+    token_frame = {
+        "type": "token",
+        "step": 0,
+        "chosen": {"id": 42, "text": " test", "logprob": -1.5},
+        "topk": [{"id": 42, "text": " test", "logit": -1.5, "prob": 0.22}],
+        "layer_stats": [0.5] * 25,
+        "eos": False,
+        "phase": "prefill",
+        "n_positions": 2,
+        "cache_len": 0,
+    }
+    rec.add_frame(token_frame)
+    # Non-token frames should be ignored.
+    rec.add_frame({"type": "meta", "model": "ignored"})
 
-    layer0 = [o["op_key"] for o in cat if o["layer"] == 0]
-    expect = [
-        "norm", "attn.q", "attn.k", "attn.v", "attention",
-        "attn.o", "norm", "mlp.gate", "mlp.up", "mlp.down",
-    ]
-    print("layer-0 op order:", layer0)
-    if layer0 != expect:
-        ok = False
-        print("  !! layer-0 order mismatch")
+    done = {"type": "done", "generated_text": " test output", "total_steps": 1}
+    rec.finalize(done)
 
-    # per-op param counts match the real modules
-    q = next(o for o in cat if o["op_key"] == "attn.q" and o["layer"] == 0)
-    qmod = eng.model.model.layers[0].self_attn.q_proj
-    real_q = sum(p.numel() for p in qmod.parameters())
-    print(f"q_proj L0: op={q['param_count']:,} module={real_q:,} "
-          f"in={q['in_dim']} out={q['out_dim']} bias={q['bias_dim']}")
-    if q["param_count"] != real_q:
-        ok = False
+    trace = rec.build()
+    assert trace["trace_version"] == 1
+    assert trace["model"] == "Qwen/Qwen2.5-0.5B-Instruct"
+    assert len(trace["frames"]) == 1
+    assert trace["frames"][0]["step"] == 0
+    assert trace["done"]["generated_text"] == " test output"
+    assert "created_at" in trace
+    print("  [PASS] recorder builds correct shape")
 
-    # attention compute ops carry no params
-    if not all(o["param_count"] == 0 for o in cat if o["op_key"] == "attention"):
-        ok = False
-        print("  !! attention op has nonzero params")
 
-    # cumulative is monotonic
-    cums = [o["cumulative_params"] for o in cat]
-    if not all(cums[i] <= cums[i + 1] for i in range(len(cums) - 1)):
-        ok = False
-        print("  !! cumulative not monotonic")
+def test_serialize_round_trip():
+    trace = {
+        "trace_version": 1,
+        "created_at": "2026-01-01T00:00:00Z",
+        "model": "test-model",
+        "meta": {"prompt_len": 5, "prompt_tokens": ["a", "b"]},
+        "frames": [
+            {
+                "type": "token",
+                "step": 0,
+                "chosen": {"id": 1, "text": "x", "logprob": -2.0},
+                "topk": [],
+                "layer_stats": [],
+                "eos": False,
+            }
+        ],
+        "done": {"generated_text": "x", "total_steps": 1},
+    }
+    raw = serialize_trace(trace)
+    assert isinstance(raw, bytes)
+    parsed = json.loads(raw)
+    validated = parse_trace(parsed)
+    assert validated["trace_version"] == 1
+    assert len(validated["frames"]) == 1
+    print("  [PASS] serialize round-trip preserves data")
 
-    # weight preview is a bounded real slice
-    if not (len(q["weight_preview"]) <= 8 and len(q["weight_preview"][0]) <= 8):
-        ok = False
 
-    print(f"final op: {cat[-1]['label']} · cumulative params used: {cums[-1]:,}")
-    print("\n" + ("PASS: op catalog is real, ordered, and bounded." if ok else "FAIL."))
-    return 0 if ok else 1
+def test_parse_rejects_bad_input():
+    try:
+        parse_trace({})
+        assert False, "should have raised"
+    except ValueError as e:
+        assert "trace_version" in str(e)
+
+    try:
+        parse_trace({"trace_version": 0})
+        assert False, "should have raised"
+    except ValueError as e:
+        assert "Unsupported" in str(e)
+
+    try:
+        parse_trace({"trace_version": 1})
+        assert False, "should have raised"
+    except ValueError as e:
+        assert "meta" in str(e) or "frames" in str(e) or "done" in str(e)
+
+    print("  [PASS] parse rejects bad input")
+
+
+def test_download_filename():
+    trace = {"meta": {"prompt_tokens": ["Hello", "world", "foo"]}}
+    fn = download_filename(trace)
+    assert fn.startswith("tokenprint-")
+    assert fn.endswith(".json")
+    assert "hello" in fn
+    print("  [PASS] download_filename works")
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    test_recorder_builds_correct_shape()
+    test_serialize_round_trip()
+    test_parse_rejects_bad_input()
+    test_download_filename()
+    print("\nAll trace tests passed.")

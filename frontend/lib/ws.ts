@@ -10,6 +10,7 @@ export interface GenOptions {
   maxNewTokens?: number;
   topK?: number;
   trace?: boolean;
+  recordTrace?: boolean;
 }
 
 /**
@@ -32,6 +33,7 @@ export function wsGenerate(
         max_new_tokens: opts.maxNewTokens ?? 40,
         top_k: opts.topK ?? 10,
         trace: opts.trace ?? false,
+        record_trace: opts.recordTrace ?? false,
       }),
     );
   };

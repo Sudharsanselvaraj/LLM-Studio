@@ -3,7 +3,6 @@
 import { useStore } from "@/lib/store";
 import { fmtCount } from "@/lib/format";
 import {
-  contextOp,
   detectArch,
   getFormula,
   roleToOpKey,
@@ -72,7 +71,6 @@ export default function GenerationPanel() {
   const op = catalog[Math.min(opIndex, catalog.length - 1)];
   const family = detectArch(meta?.architecture);
   const fk = toFormulaKey(op.op_key);
-  const blockKey = fk ? contextOp(fk) : null;
   const nLayers = meta?.num_layers ?? 0;
   const activeLayer = activeLayerOf(op, nLayers);
   const phase = phaseInfo(frame, meta?.prompt_len ?? 0, meta?.uses_kv_cache);
@@ -98,11 +96,13 @@ export default function GenerationPanel() {
         </div>
       )}
 
-      {showEquations &&
-        blockKey &&
-        getFormula(family, blockKey).latex.map((l, i) => (
-          <Formula key={i} latex={l} />
-        ))}
+      {showEquations && fk && (
+        <div className="gp-formula">
+          {getFormula(family, fk).latex.map((l, i) => (
+            <Formula key={i} latex={l} />
+          ))}
+        </div>
+      )}
 
       <div className="gp-crumb">
         <div className="gp-crumb-nav">
@@ -125,14 +125,6 @@ export default function GenerationPanel() {
         {op.layer != null && <div className="gp-crumb-sub">Layer {op.layer}</div>}
 
         {op.weight_preview.length > 0 && <WeightPreview data={op.weight_preview} />}
-
-        {showEquations && fk && (
-          <div className="gp-crumb-formula">
-            {getFormula(family, fk).latex.map((l, i) => (
-              <Formula key={i} latex={l} />
-            ))}
-          </div>
-        )}
 
         <div className="gp-dims">
           {op.in_dim != null && (

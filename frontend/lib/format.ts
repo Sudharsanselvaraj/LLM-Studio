@@ -19,3 +19,14 @@ export function fmtBytes(n: number | null | undefined): string {
 
 export const fmtShape = (shape: number[]): string =>
   shape.length ? shape.join(" × ") : "scalar";
+
+/**
+ * Middle-truncate a long string so the distinguishing suffix is visible.
+ * "model.layers.14.self_attn.q_proj.weight" -> "model.lay…q_proj.weight"
+ */
+export function middleTruncate(s: string, maxLen = 48): string {
+  if (s.length <= maxLen) return s;
+  const keepEnd = Math.min(20, Math.floor(maxLen * 0.4));
+  const keepStart = maxLen - keepEnd - 1;
+  return s.slice(0, keepStart) + "…" + s.slice(-keepEnd);
+}

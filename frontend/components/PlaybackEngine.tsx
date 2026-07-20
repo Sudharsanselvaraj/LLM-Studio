@@ -66,10 +66,14 @@ export default function PlaybackEngine() {
     return () => clearInterval(id);
   }, [mode, opPlaying, playSpeed]);
 
-  // Walkthrough: auto-advance chapters. setState directly (not setWtChapter,
-  // which would stop autoplay).
+  // Walkthrough: auto-advance chapters. Never auto-advance before data loads.
   useEffect(() => {
     if (mode !== "walkthrough" || !wtPlaying) return;
+    const dataReady = !!useStore.getState().data;
+    if (!dataReady) {
+      useStore.setState({ wtPlaying: false });
+      return;
+    }
     const id = setInterval(() => {
       const s = useStore.getState();
       if (s.wtChapter >= CHAPTERS.length - 1) useStore.setState({ wtPlaying: false });

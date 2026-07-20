@@ -21,6 +21,21 @@ class AnalyzeRequest(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
+# Ablation (v0.5)
+# --------------------------------------------------------------------------- #
+class AblateRequest(BaseModel):
+    sentence: str = Field(..., min_length=1)
+    zero_heads: dict[str, list[int]] = Field(
+        default_factory=dict,
+        description='Map of layer_index -> list of head indices to zero, e.g. {"0": [0, 1]}',
+    )
+    zero_layers: list[int] = Field(
+        default_factory=list,
+        description="List of layer indices to zero entirely.",
+    )
+
+
+# --------------------------------------------------------------------------- #
 # Response building blocks
 # --------------------------------------------------------------------------- #
 class Token(BaseModel):
@@ -62,6 +77,12 @@ class AnalyzeResponse(BaseModel):
     # L2 norm of each token's raw embedding vector.
     embedding_norms: list[float] = []
     projection: Projection | None = None
+
+    # --- Phase 4: logit lens (v0.3) --------------------------------------- #
+    # Per-layer top-5 decoded tokens after unembedding projection.
+    # Index 0 = embedding output; index L = after layer L.
+    # Each entry: [layer_index] -> [{text, token_id, prob}, ...] (top 5)
+    logit_lens: list[list[dict]] = []
 
 
 class ModelInfo(BaseModel):

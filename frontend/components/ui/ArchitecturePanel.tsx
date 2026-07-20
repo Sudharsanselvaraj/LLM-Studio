@@ -17,46 +17,30 @@ export default function ArchitecturePanel() {
   const m = arch?.metadata;
   if (!m) return null;
 
+  // Show only GGUF-specific info that isn't duplicated in the right panel.
+  const isGguf = arch?.source === "gguf";
+  const extras: { label: string; value: React.ReactNode }[] = [];
+  if (isGguf) {
+    extras.push(
+      { label: "Quantization", value: m.quantization },
+      { label: "File Size", value: fmtBytes(m.file_size) },
+    );
+  }
+  if (m.gguf_version != null) extras.push({ label: "GGUF Version", value: `v${m.gguf_version}` });
+  if (m.expert_count != null) {
+    extras.push({ label: "Experts", value: m.expert_count });
+    extras.push({ label: "Active Experts", value: m.expert_used_count });
+  }
+  if (m.rope_theta != null) extras.push({ label: "RoPE Base", value: fmtCount(m.rope_theta) });
+  if (extras.length === 0) return null;
+
   return (
     <div className="side-section">
-      <div className="side-title">Architecture</div>
+      <div className="side-title">Model Source</div>
       <div className="astat-grid">
-        <Stat label="Architecture" value={m.architecture} />
-        <Stat
-          label={arch?.source === "gguf" ? "Quantization" : "Precision"}
-          value={m.quantization ?? m.torch_dtype}
-        />
-        <Stat label="Parameters" value={fmtCount(m.total_params)} />
-        <Stat
-          label={arch?.source === "gguf" ? "File Size" : "Tensors"}
-          value={
-            m.file_size != null ? fmtBytes(m.file_size) : arch?.tensor_count
-          }
-        />
-        <Stat label="Layers" value={m.num_layers} />
-        <Stat label="Context" value={fmtCount(m.context_length)} />
-        <Stat label="Embedding" value={fmtCount(m.hidden_size)} />
-        <Stat label="FFN Size" value={fmtCount(m.ffn_size)} />
-        <Stat label="Attn Heads" value={m.num_heads} />
-        <Stat label="KV Heads" value={m.num_kv_heads} />
-        <Stat label="Head Dim" value={m.head_dim} />
-        <Stat label="Vocab Size" value={fmtCount(m.vocab_size)} />
-        {m.expert_count != null && (
-          <>
-            <Stat label="Experts" value={m.expert_count} />
-            <Stat label="Active Experts" value={m.expert_used_count} />
-          </>
-        )}
-        {m.rope_theta != null && (
-          <Stat label="RoPE Base" value={fmtCount(m.rope_theta)} />
-        )}
-        {m.gguf_version != null && (
-          <Stat label="GGUF Version" value={`v${m.gguf_version}`} />
-        )}
-        <Stat
-          label="Model Type"
-          value={m.expert_count ? "MoE" : `Dense${m.num_kv_heads < m.num_heads ? " (GQA)" : ""}`}
-        />
+        {extras.map((e) => (
+          <Stat key={e.label} label={e.label} value={e.value} />
+        ))}
       </div>
     </div>
   );

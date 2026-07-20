@@ -1,17 +1,21 @@
 import { create } from "zustand";
-import { analyzeSentence, fetchArchitecture } from "./api";
+import { analyzeSentence, fetchArchitecture, loadTraceFile, downloadTrace as apiDownloadTrace } from "./api";
 import { layerAnchors, anchorPosFor } from "./playback";
 import { wsGenerate } from "./ws";
 import { cueDistrict, cueToken, setMuted as setSoundMuted } from "./sound";
 import { annotateTensors } from "./tensorName";
+import { dequantizeTensor } from "./gguf/dequant";
 import type {
   AnalyzeResponse,
   ArchitectureData,
   District,
   GenMeta,
   GenStatus,
+  HotSpot,
   Mode,
+  TensorInfo,
   TokenFrame,
+  Trace,
 } from "./types";
 
 interface NeuroState {
@@ -25,6 +29,7 @@ interface NeuroState {
 
   // --- Architecture Explorer ------------------------------------------- //
   arch: ArchitectureData | null;
+  archFile: File | null; // the original GGUF file (if loaded via drag-drop)
   archLoading: boolean;
   archError: string | null;
   loadArchitecture: () => Promise<void>; // model-backed source (/architecture)
@@ -45,6 +50,23 @@ interface NeuroState {
   setColorBy: (c: "layer" | "role") => void;
   setShowConnections: (b: boolean) => void;
   setShowLayerBoxes: (b: boolean) => void;
+
+  // --- v0.25 Quantization Diff ------------------------------------------- //
+  compareArch: ArchitectureData | null;
+  compareFile: File | null;
+  compareLoading: boolean;
+  compareError: string | null;
+  loadCompareGguf: (file: File) => Promise<void>;
+  clearCompare: () => void;
+  // Dequantized data for the currently selected tensor in both files.
+  dequantA: Float32Array | null;
+  dequantB: Float32Array | null;
+  dequantLoading: boolean;
+  quantErrorMetric: { name: string; value: number } | null;
+  // v0.25 hot-spot ranking.
+  hotSpots: HotSpot[];
+  hotSpotsLoading: boolean;
+  computeHotSpots: () => Promise<void>;
 
   // Which district the camera is visiting.
   currentDistrict: District;
@@ -84,6 +106,11 @@ interface NeuroState {
   stepPlay: (dir: 1 | -1) => void;
   togglePlay: () => void;
   replay: () => void;
+
+  // --- v0.2 Trace (Record & Replay) -------------------------------------- //
+  loadTrace: (file: File) => Promise<void>;
+  downloadTrace: () => Promise<void>;
+  traceSource: "live" | "file" | null; // where the current gen data came from
 
   // Op-walkthrough playback (Generation panel).
   opIndex: number;
@@ -132,6 +159,7 @@ export const useStore = create<NeuroState>((set) => ({
   setMode: (m) => set({ mode: m }),
 
   arch: null,
+  archFile: null,
   archLoading: false,
   archError: null,
   loadArchitecture: async () => {
@@ -154,6 +182,7 @@ export const useStore = create<NeuroState>((set) => ({
       const data = await parseGgufFile(file);
       set({
         arch: { ...data, tensors: annotateTensors(data.tensors) },
+        archFile: file,
         archLoading: false,
         selectedTensor: null,
         hoveredTensor: null,
@@ -174,7 +203,6 @@ export const useStore = create<NeuroState>((set) => ({
     }),
   selectedTensor: null,
   hoveredTensor: null,
-  setSelectedTensor: (name) => set({ selectedTensor: name }),
   setHoveredTensor: (name) => set({ hoveredTensor: name }),
   pointBudget: 250_000,
   pointSize: 0.9,
@@ -186,6 +214,107 @@ export const useStore = create<NeuroState>((set) => ({
   setColorBy: (c) => set({ colorBy: c }),
   setShowConnections: (b) => set({ showConnections: b }),
   setShowLayerBoxes: (b) => set({ showLayerBoxes: b }),
+
+  // --- v0.25 Quantization Diff ------------------------------------------- //
+  compareArch: null,
+  compareFile: null,
+  compareLoading: false,
+  compareError: null,
+  dequantA: null,
+  dequantB: null,
+  dequantLoading: false,
+  quantErrorMetric: null,
+  hotSpots: [],
+  hotSpotsLoading: false,
+
+  loadCompareGguf: async (file) => {
+    set({ compareLoading: true, compareError: null, hotSpots: [], hotSpotsLoading: false });
+    try {
+      const { parseGgufFile } = await import("./gguf/parser");
+      const data = await parseGgufFile(file);
+      set({
+        compareArch: { ...data, tensors: annotateTensors(data.tensors) },
+        compareFile: file,
+        compareLoading: false,
+      });
+    } catch (e) {
+      set({
+        compareLoading: false,
+        compareError: e instanceof Error ? e.message : "GGUF parse failed",
+      });
+    }
+  },
+
+  clearCompare: () =>
+    set({
+      compareArch: null,
+      compareFile: null,
+      compareError: null,
+      dequantA: null,
+      dequantB: null,
+      quantErrorMetric: null,
+      hotSpots: [],
+      hotSpotsLoading: false,
+    }),
+
+  computeHotSpots: async () => {
+    const s = useStore.getState();
+    if (!s.archFile || !s.compareFile || !s.arch || !s.compareArch) return;
+    set({ hotSpotsLoading: true });
+    const tensors: HotSpot[] = [];
+    const SAMPLE = 1024;
+    for (const tA of s.arch.tensors) {
+      const tB = s.compareArch.tensors.find((t) => t.name === tA.name);
+      if (!tB || tA.n_params !== tB.n_params || tA.ggmlType === undefined || tB.ggmlType === undefined || tA.offset === undefined || tB.offset === undefined) continue;
+      try {
+        const [a, b] = await Promise.all([
+          dequantizeTensor(s.archFile, tA.offset, tA.ggmlType, tA.n_params, SAMPLE),
+          dequantizeTensor(s.compareFile, tB.offset, tB.ggmlType, tB.n_params, SAMPLE),
+        ]);
+        const vA = a.values;
+        const vB = b.values;
+        const len = Math.min(vA.length, vB.length);
+        let sum = 0;
+        for (let i = 0; i < len; i++) sum += Math.abs(vA[i] - vB[i]);
+        tensors.push({ name: tA.name, score: sum / len, rank: 0 });
+      } catch {
+        // skip tensors that fail dequantization
+      }
+    }
+    tensors.sort((a, b) => b.score - a.score);
+    tensors.forEach((t, i) => (t.rank = i + 1));
+    const top = tensors.slice(0, 20);
+    set({ hotSpots: top, hotSpotsLoading: false });
+  },
+
+  setSelectedTensor: (name) => {
+    set({ selectedTensor: name, dequantA: null, dequantB: null, dequantLoading: false, quantErrorMetric: null });
+    // If we have both GGUF files loaded and a tensor is selected, dequantize both copies.
+    const state = useStore.getState();
+    if (name && state.compareFile && state.compareArch && state.archFile && state.arch) {
+      const tA = state.arch.tensors.find((t) => t.name === name);
+      const tB = state.compareArch.tensors.find((t) => t.name === name);
+      if (tA && tB && tA.n_params === tB.n_params && tA.ggmlType !== undefined && tB.ggmlType !== undefined && tA.offset !== undefined && tB.offset !== undefined) {
+        set({ dequantLoading: true });
+        Promise.all([
+          dequantizeTensor(state.archFile, tA.offset, tA.ggmlType, tA.n_params),
+          dequantizeTensor(state.compareFile, tB.offset, tB.ggmlType, tB.n_params),
+        ]).then(([a, b]) => {
+          const vA = a.values;
+          const vB = b.values;
+          const len = Math.min(vA.length, vB.length);
+          let sum = 0;
+          for (let i = 0; i < len; i++) sum += Math.abs(vA[i] - vB[i]);
+          set({
+            dequantA: vA,
+            dequantB: vB,
+            dequantLoading: false,
+            quantErrorMetric: { name: "Mean Abs Diff", value: sum / len },
+          });
+        }).catch(() => set({ dequantLoading: false }));
+      }
+    }
+  },
 
   currentDistrict: "attention",
   setDistrict: (d) =>
@@ -246,6 +375,7 @@ export const useStore = create<NeuroState>((set) => ({
   genError: null,
   playIndex: -1,
   isPlaying: false,
+  traceSource: null,
 
   opIndex: 0,
   opPlaying: false,
@@ -338,9 +468,10 @@ export const useStore = create<NeuroState>((set) => ({
       opIndex: 0,
       opPlaying: false,
       autoStarted: false,
+      traceSource: "live",
     });
 
-    genSocket = wsGenerate(prompt, { maxNewTokens: 40, topK: 10, trace: true }, {
+    genSocket = wsGenerate(prompt, { maxNewTokens: 40, topK: 10, trace: true, recordTrace: true }, {
       onFrame: (raw) => {
         const f = raw as { type: string } & Record<string, unknown>;
         if (f.type === "meta") {
@@ -402,4 +533,68 @@ export const useStore = create<NeuroState>((set) => ({
 
   replay: () =>
     set((s) => (s.genFrames.length ? { playIndex: 0, isPlaying: true } : {})),
+
+  // --- v0.2 Trace (Record & Replay) ---------------------------------------- //
+  loadTrace: async (file) => {
+    set({
+      genStatus: "streaming",
+      genMeta: null,
+      genFrames: [],
+      genText: "",
+      genError: null,
+      playIndex: -1,
+      isPlaying: false,
+      opIndex: 0,
+      opPlaying: false,
+      autoStarted: false,
+      mode: "generation",
+    });
+    try {
+      const trace: Trace = await loadTraceFile(file);
+      // Populate the store with the trace data — same shape as a live WS session.
+      const frames = trace.frames ?? [];
+      set({
+        genMeta: trace.meta,
+        genFrames: frames,
+        genText: trace.done?.generated_text ?? "",
+        genStatus: "done",
+        playIndex: 0,
+        isPlaying: false,
+        traceSource: "file",
+      });
+    } catch (e) {
+      set({
+        genStatus: "error",
+        genError: e instanceof Error ? e.message : "Failed to load trace file",
+      });
+    }
+  },
+
+  downloadTrace: async () => {
+    await apiDownloadTrace();
+  },
 }));
+
+/** Parse URL search params and restore store state (snapshot load). */
+export function restoreFromUrl(): Partial<NeuroState> {
+  if (typeof window === "undefined") return {};
+  const p = new URLSearchParams(window.location.search);
+  const v = p.get("v");
+  if (!v) return {};
+
+  const state: Partial<NeuroState> = {};
+
+  const mode = p.get("mode") as Mode | null;
+  if (mode) state.mode = mode;
+
+  const tokenIdx = p.get("token");
+  if (tokenIdx) state.playIndex = Number(tokenIdx);
+
+  const opIdx = p.get("op");
+  if (opIdx) state.opIndex = Number(opIdx);
+
+  const chapter = p.get("chapter");
+  if (chapter) state.wtChapter = Number(chapter);
+
+  return state;
+}

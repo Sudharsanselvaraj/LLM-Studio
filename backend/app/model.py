@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import threading
+import time
 
 # --- Environment guards (must be set BEFORE torch/transformers import) -------
 # Safety net: if any single op is unimplemented on MPS, fall back to CPU for that
@@ -30,8 +31,9 @@ os.environ.setdefault("USE_FLAX", "0")
 os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1")
 
 import torch  # noqa: E402
-from transformers import AutoModelForCausalLM, AutoTokenizer  # noqa: E402
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer  # noqa: E402
 
+from .debug import DebugCapture  # noqa: E402
 from .reduce import explained_variance, project_3d  # noqa: E402
 
 DEFAULT_MODEL_ID = os.environ.get("NEUROSCOPE_MODEL", "Qwen/Qwen2.5-0.5B-Instruct")
@@ -150,6 +152,36 @@ class ModelEngine:
             # Per-token embedding norm (L2), for optional node sizing.
             emb_norms = [round(float(v), 4) for v in (hidden[0] ** 2).sum(1) ** 0.5]
 
+            # --- Phase 4: logit lens (v0.3) --------------------------------
+            # Project each layer's residual stream through final_norm + lm_head
+            # to get per-position top-5 vocabulary predictions.
+            # logit_lens[layer][position] = [{text, token_id, prob}, ...]
+            norm = getattr(self.model.model, "norm", None)
+            if norm is None:
+                norm = getattr(self.model.model, "final_layer_norm", None)
+            lm_head = getattr(self.model, "lm_head", None)
+            logit_lens: list[list[list[dict]]] = []
+            if norm is not None and lm_head is not None:
+                n_top = 5
+                for h in out.hidden_states:
+                    x = h.to(self.device)
+                    x = norm(x)
+                    logits = lm_head(x).float()  # [1, seq, vocab]
+                    probs = logits.softmax(-1).squeeze(0)  # [seq, vocab]
+                    pos_entries: list[list[dict]] = []
+                    for pos in range(probs.shape[0]):
+                        topk = probs[pos].topk(n_top)
+                        entries = [
+                            {
+                                "text": self._decode_id(int(tid)),
+                                "token_id": int(tid),
+                                "prob": round(float(p), 6),
+                            }
+                            for tid, p in zip(topk.indices.tolist(), topk.values.tolist())
+                        ]
+                        pos_entries.append(entries)
+                    logit_lens.append(pos_entries)
+
         return {
             "sentence": sentence,
             "model": self.model_id,
@@ -162,6 +194,7 @@ class ModelEngine:
             "embeddings_3d": embeddings_3d,
             "hidden_states_3d": hidden_states_3d,
             "embedding_norms": emb_norms,
+            "logit_lens": logit_lens,
             "projection": {
                 "method": "PCA",
                 "note": (
@@ -416,6 +449,120 @@ class ModelEngine:
         return ops
 
     # ------------------------------------------------------------------ #
+    # ------------------------------------------------------------------ #
+    # Debug snapshot (v0.4)
+    # ------------------------------------------------------------------ #
+    def debug_analyze(self, sentence: str) -> dict:
+        """Run a forward pass with all intermediate outputs captured.
+
+        Returns the normal ``analyze()`` result plus a ``debug_snapshot`` dict
+        mapping module paths to sampled float arrays of their outputs.
+        """
+        with self._lock:
+            enc, tokens = self._tokenize(sentence)
+            enc = {k: v.to(self.device) for k, v in enc.items()}
+
+            cap = DebugCapture(self.model)
+
+            with torch.no_grad():
+                out = cap.timed_forward(
+                    self.model,
+                    **enc, output_attentions=True, output_hidden_states=True
+                )
+
+            raw = cap.pop_outputs()
+            timings = cap.pop_timings()
+            cap.remove_hooks()
+
+            # Build the base result (same as analyze) — but reuse the forward
+            # pass we already did.
+            attn = torch.stack(out.attentions).squeeze(1).to("cpu").float()
+            attn = torch.round(attn * (10**_ATTN_DECIMALS)) / (10**_ATTN_DECIMALS)
+            attn[attn < _ATTN_ZERO_BELOW] = 0.0
+            attention = attn.tolist()
+
+            hidden = [
+                h.squeeze(0).to("cpu").float().numpy() for h in out.hidden_states
+            ]
+            hidden_states_3d = {str(i): project_3d(h) for i, h in enumerate(hidden)}
+            embeddings_3d = hidden_states_3d["0"]
+            emb_norms = [round(float(v), 4) for v in (hidden[0] ** 2).sum(1) ** 0.5]
+
+            # Logit lens
+            norm = getattr(self.model.model, "norm", None)
+            if norm is None:
+                norm = getattr(self.model.model, "final_layer_norm", None)
+            lm_head = getattr(self.model, "lm_head", None)
+            logit_lens: list = []
+            if norm is not None and lm_head is not None:
+                for h in out.hidden_states:
+                    x = h.to(self.device)
+                    x = norm(x)
+                    logits = lm_head(x).float().softmax(-1).squeeze(0)
+                    pos_entries: list[list[dict]] = []
+                    for pos in range(logits.shape[0]):
+                        topk = logits[pos].topk(5)
+                        pos_entries.append([
+                            {"text": self._decode_id(int(tid)), "token_id": int(tid), "prob": round(float(p), 6)}
+                            for tid, p in zip(topk.indices.tolist(), topk.values.tolist())
+                        ])
+                    logit_lens.append(pos_entries)
+
+            # Build debug snapshot (bounded sampling)
+            snapshot: dict[str, list] = {}
+            for path, t in raw.items():
+                if not isinstance(t, torch.Tensor):
+                    continue
+                arr = t.detach().float().cpu().numpy()
+                flat = arr.ravel()
+                step = max(1, flat.size // 1024)
+                sampled = flat[::step][:1024].tolist()
+                snapshot[path] = {
+                    "shape": list(arr.shape),
+                    "dtype": str(t.dtype).replace("torch.", ""),
+                    "sample": sampled,
+                    "n_elements": int(arr.size),
+                }
+
+        return {
+            "sentence": sentence,
+            "model": self.model_id,
+            "device": self.device,
+            "num_layers": self.num_layers,
+            "num_heads": self.num_heads,
+            "hidden_size": self.hidden_size,
+            "tokens": tokens,
+            "attention": attention,
+            "embeddings_3d": embeddings_3d,
+            "hidden_states_3d": hidden_states_3d,
+            "embedding_norms": emb_norms,
+            "logit_lens": logit_lens,
+            "projection": {
+                "method": "PCA",
+                "note": (
+                    "3D PCA projection of 896-dim vectors; distances are "
+                    "approximate, not the literal high-dimensional geometry."
+                ),
+                "embedding_explained_variance": [],
+            },
+            "debug_snapshot": snapshot,
+            "debug_timings": timings,
+        }
+
+    @property
+    def debug_ops(self) -> list[dict]:
+        ops: list[dict] = []
+        for name, module in self.model.named_modules():
+            if not list(module.named_children()):
+                params = sum(p.numel() for p in module.parameters())
+                ops.append({
+                    "path": name,
+                    "label": name.split(".")[-1],
+                    "params": int(params),
+                    "dtype": str(next(module.parameters()).dtype).replace("torch.", "") if params else None,
+                })
+        return ops
+
     # Architecture introspection (Explorer — no forward pass)
     # ------------------------------------------------------------------ #
     def architecture(self) -> dict:
@@ -482,4 +629,41 @@ class ModelEngine:
             "attn_implementation": self.attn_implementation,
             "max_tokens": MAX_TOKENS,
             "ready": True,
+        }
+
+    # ------------------------------------------------------------------ #
+    # Checkpoint loading (v0.6)
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def checkpoint_architecture(model_id: str) -> dict:
+        """Quickly load just the config for any HuggingFace model and return
+        architecture metadata (no weights loaded)."""
+        cfg = AutoConfig.from_pretrained(model_id)
+        head_dim = getattr(
+            cfg, "head_dim", cfg.hidden_size // cfg.num_attention_heads
+        )
+        return {
+            "source": "model",
+            "model": model_id,
+            "device": "remote",
+            "metadata": {
+                "architecture": getattr(cfg, "model_type", "unknown"),
+                "name": model_id.split("/")[-1],
+                "total_params": 0,
+                "num_layers": cfg.num_hidden_layers,
+                "hidden_size": cfg.hidden_size,
+                "num_heads": cfg.num_attention_heads,
+                "num_kv_heads": getattr(
+                    cfg, "num_key_value_heads", cfg.num_attention_heads
+                ),
+                "head_dim": head_dim,
+                "ffn_size": getattr(cfg, "intermediate_size", None),
+                "vocab_size": cfg.vocab_size,
+                "context_length": getattr(cfg, "max_position_embeddings", None),
+                "rope_theta": getattr(cfg, "rope_theta", None),
+                "tie_word_embeddings": getattr(cfg, "tie_word_embeddings", None),
+                "torch_dtype": str(getattr(cfg, "torch_dtype", "float32")),
+            },
+            "tensor_count": 0,
+            "tensors": [],
         }

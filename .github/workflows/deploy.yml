@@ -36,7 +36,11 @@ jobs:
 
       - run: npm run build
 
+      # enablement:true turns Pages on (build_type=workflow) the first time this
+      # runs, so a fresh clone/fork deploys without a manual Settings → Pages step.
       - uses: actions/configure-pages@v4
+        with:
+          enablement: true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

@@ -140,3 +140,41 @@ reported per frame:
 
 The frontend only shows this distinction when `meta.uses_kv_cache` is true —
 never faked.
+
+---
+
+## `GET /trace` · `POST /trace/replay`
+
+Record & replay. When a generation request sets `record_trace: true`, the full
+WebSocket stream is tee'd into an in-memory trace (prompt, model metadata, every
+token/layer frame in order, timings). `GET /trace` returns the last recorded run
+as a downloadable `.tokenprint.json`; `POST /trace/replay` accepts an uploaded
+trace and replays it back to the caller.
+
+The schema is **versioned from day one** (`trace_version: 1`, see
+`backend/app/trace.py`) — replay code will outlive the current stream shape, and
+`parse_trace()` rejects an unknown version rather than silently mis-reading it.
+
+A trace is a real forward pass frozen to disk: replaying one is not a simulation,
+it is the same numbers the model produced, re-emitted with their original pacing.
+This is what lets the static demo show genuine data with no GPU and no backend.
+
+## `GET /debug/ops` · `POST /debug/analyze`
+
+Stepped inspection. `/debug/ops` returns the real op catalog (index, label,
+`op_key`, layer, `in_dim`/`out_dim`, `param_count`) so the frontend can set
+breakpoints against true op indices. `/debug/analyze` runs a prompt and returns
+the per-layer state needed to inspect a paused position.
+
+## `POST /ablate/analyze`
+
+Interventions. Accepts a sentence plus the heads and/or layers to zero, installs
+forward hooks that null those components' contribution, and re-runs a **real**
+forward pass. The response has the same shape as `/analyze`, so the frontend can
+diff the two logit-lens tables position by position and report exactly how many
+predictions changed.
+
+This works on **raw architectural components** — any head, any block, on whatever
+model is loaded — with no sparse autoencoder, transcoder, or other pre-trained
+artifact required. That is the deliberate difference from feature-level
+intervention tools.

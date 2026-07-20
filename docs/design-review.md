@@ -14,6 +14,43 @@ No niceties. Redesign anything weak.
 
 ---
 
+## Current status (updated 2026-07-20, end of implementation push)
+
+**Phases 0, 1, and 2 are complete (36/36). Phase 3 is 10/11, Phase 4 is 11/12.**
+77 of 89 tracked issues are closed. What shipped since this review was written:
+
+- **Phase 0** — every credibility bug fixed: duplicate loader, `…` placeholders (chapters now
+  gate on data with a spinner + elapsed + retry), empty canvas, RMSNorm naming, formula
+  dedup, whitespace-token escaping, middle-truncation, frame-on-load.
+- **Phase 1** — the docked shell exists (CSS grid `"top top top" / "side canvas right" /
+  "bot bot bot"`); playback, prediction game and logit lens are docked, not floating;
+  keyboard model (Space/F10/F11/J/K/B); component-class colors (`lib/sceneColors.ts`);
+  ContactShadows + fog + three-point rig; type scale.
+- **Phase 2** — the science corrections all landed: residual **branch/merge topology**,
+  RMSNorm **collar**, SwiGLU **twin prongs + gate junction**, **attention arcs** to the KV
+  strip, **RoPE helix**, spatial **KV-cache**, plus tooltips, head-fingerprint verdicts, and
+  the GitHub Pages workflow.
+- **Phase 3/4** — 11 debugger components (breakpoints, LOD, flame graph, sentinels, watches,
+  layer table, head grid, replay branching, console REPL) and 11 depth components (quant
+  explainer, LoRA deltas, induction-head lab, sampling playground, why-explainer, depth dial,
+  light mode + a11y, GPT-2 loader) plus two Python CLIs.
+
+**A data-integrity guard was added and is the most important outcome of this phase.**
+During verification, six components were found rendering fabricated values — four using
+`Math.random()`, one hashing tensor *names* into "weight deltas", one hardcoding `0.42`/`0.87`
+as traced tensor values. All were fixed (real data, or the claim narrowed to what's
+measurable). `frontend/scripts/verify-data.sh` now fails `npm run build` on `Math.random` in
+application code, so the project's central claim is mechanically enforced rather than
+reviewer-enforced — reviewer enforcement demonstrably failed twice.
+
+**Known remaining honesty gaps** (tracked, documented in the README):
+[#18](https://github.com/Sudharsanselvaraj/Token-Print/issues/18) TimingReadout labels PCA
+magnitudes as milliseconds · [#75](https://github.com/Sudharsanselvaraj/Token-Print/issues/75)
+"Activation Patching" panel shows a logit-lens trajectory · attn-vs-MLP residual decomposition
+still needs per-sub-block hooks.
+
+---
+
 ## Reconciliation note (working-tree audit, 2026-07-20)
 
 This review was written from screenshots. A subsequent audit of the working tree found
@@ -251,7 +288,7 @@ weakest — and it's the one a first-time visitor judges you by.
 
 ## 7. TokenPrint v2 — the redesign
 
-One shell, DevTools-style, for all three modes. Kill every floating overlay.
+One shell, DevTools-style, for all modes (Architecture · Generation · Walkthrough · Debugger). Kill every floating overlay.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -351,7 +388,7 @@ Scores: **E**du / **R**esearch / en**G**ineering / **C**ommunity / **N**ovelty /
 | # | Feature | E | R | G | C | N | W | D | Status |
 |---|---|---|---|---|---|---|---|---|---|
 | 21 | Logit-lens heatmap (#9,#10) | 5 | 5 | 4 | 4 | 4 | 5 | M | 🔧 `LogitLensPanel.tsx` (surface it) |
-| 22 | Token evolution timeline (#11) | 5 | 4 | 3 | 4 | 4 | 5 | M | ✅ `EvolutionTimeline.tsx` |
+| 22 | Token evolution timeline (#11) | 5 | 4 | 3 | 4 | 4 | 5 | M | ✅ `PredictionTimeline.tsx` / `BottomBar.tsx` |
 | 23 | Per-head attention heatmaps (#15) | 4 | 5 | 4 | 4 | 3 | 4 | M | ✅ `HeadInspector.tsx` |
 | 24 | Head fingerprinting (#16) | 4 | 5 | 4 | 4 | 5 | 4 | M | ✅ `HeadInspector.tsx` |
 | 25 | Head/block ablation (#20,#21) | 4 | 5 | 5 | 4 | 5 | 5 | L | 🔧 `ablation.py`/`AblationPanel.tsx` (re-place) |

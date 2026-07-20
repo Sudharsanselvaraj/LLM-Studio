@@ -1,5 +1,24 @@
 # TokenPrint Roadmap
 
+> **Status as of 2026-07-20 — most of this document is now shipped.**
+>
+> All six original milestones (**v0.2 → v0.6**) are complete, as are design-review
+> **Phases 0–2** (credibility triage, docked shell, scientific corrections). Phase 3
+> (debugger) is 10/11 and Phase 4 (depth features) is 11/12.
+>
+> | Milestone | State |
+> | --- | --- |
+> | v0.2 Record & Replay · v0.25 Quantization Diff · v0.3 Logit Lens · v0.4 Debugger · v0.5 Interventions · v0.6 Surface features | ✅ complete |
+> | Phase 0 Credibility triage · Phase 1 Instrument · Phase 2 Correct the science | ✅ complete |
+> | Phase 3 The debugger complete | 10/11 |
+> | Phase 4 Depth & audience | 11/12 |
+> | Phase 5 Platform & flagship | not started |
+>
+> Live tracking: [milestones](https://github.com/Sudharsanselvaraj/Token-Print/milestones).
+> The sections below are kept as the **reasoning record** — why each thing was built and in
+> what order — rather than a to-do list. See [docs/design-review.md](docs/design-review.md)
+> for the phased audit and the remaining work.
+
 TokenPrint's identity going forward: **an interactive visual debugger for transformer
 execution.** Not another "what is a transformer?" explainer — a tool that answers:
 

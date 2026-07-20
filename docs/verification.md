@@ -97,3 +97,59 @@ Headless Chrome on some machines won't composite WebGL into screenshots, so the
 `--headed`) to (a) read real numbers back out of the DOM and (b) capture what's
 actually rendered. Rendering is additionally checked by reading three.js's own
 framebuffer, independent of the screenshot path.
+
+## The build fails on fabricated data
+
+Everything above verifies that the *backend* produces real numbers. This check
+guards the other end — that the **frontend never invents any**.
+
+`frontend/scripts/verify-data.sh` greps `components/`, `lib/`, and `app/` for
+`Math.random` and exits non-zero if it finds any, with a narrow allowlist for
+genuine visual randomness (`TensorCloud.tsx` point jitter, `pointcloud.ts`
+layout). It is wired into the build itself, not just CI:
+
+```json
+"build": "npm run verify-data && next build"
+```
+
+so a fabricated value cannot reach a deployed page even from a local build.
+
+**Why this exists.** During a verification sweep in July 2026, six components
+were found rendering numbers that looked authoritative but were not measured:
+
+| Component | What it did |
+| --- | --- |
+| `NumberProvenance` | hardcoded `0.42` / `0.87`, rendered as `toFixed(4)` |
+| `ActivationPatchCompare` | `prob + (Math.random() - 0.5) * shift` as "patched" output |
+| `ResidualContributions` | `Math.random()` magnitudes, attn/MLP split by `layer % 2` |
+| `LoraDeltaViz` | "weight delta" computed from a hash of the tensor **name** |
+
+All were corrected — either wired to real data (`LoraDeltaViz` now uses the real
+sampled mean-absolute-difference from the quant-diff path; `ResidualContributions`
+now measures real PCA-space residual deltas) or narrowed to an honest claim
+(`NumberProvenance` dropped the values and states that real ones need
+`GET /debug/tensor`).
+
+The lesson worth recording: **two rounds of human review did not catch these.**
+Plausible placeholder math is invisible in a diff and indistinguishable from real
+output on screen. A mechanical check is the only reliable defence, which is why
+the rule is enforced by the build rather than by discipline.
+
+### Known gaps in this guarantee
+
+Honesty requires listing where the claim does not yet fully hold. These are
+tracked bugs, not accepted behaviour:
+
+- **`TimingReadout`** derives a proxy from PCA-space hidden-state magnitudes and
+  labels it in milliseconds. A PCA norm is dimensionless and unrelated to elapsed
+  time. Real per-layer timings need `perf_counter()` deltas on the streamed
+  frames — [#18](https://github.com/Sudharsanselvaraj/Token-Print/issues/18).
+- **`ActivationPatchCompare`** now shows a real logit-lens trajectory, but the
+  panel is still titled "Activation Patching" — a stronger causal claim than the
+  experiment performed — [#75](https://github.com/Sudharsanselvaraj/Token-Print/issues/75).
+- **`ResidualContributions`** measures total residual change per layer in PCA
+  space, not the attention-vs-MLP decomposition; the label says so.
+
+The guard catches fabricated *values*. It cannot catch a real value under a wrong
+*label*, which is the remaining class of error above — those need a periodic
+sweep of every panel title against what it actually computes.

@@ -103,3 +103,63 @@ and never fabricates numbers.
   token, so per-token frames stay tiny.
 - **Client-side GGUF parsing** — only the file header is read, so multi-GB files
   parse instantly and nothing is uploaded.
+
+---
+
+## What was added in the debugger build-out (2026-07)
+
+### Backend modules
+
+| Module | Responsibility |
+| --- | --- |
+| `model.py` | Loads the model once; `/analyze` (attention, PCA geometry, per-layer logit lens), the generation loop, the op catalog |
+| `trace.py` | `TraceRecorder`, `serialize_trace`, `parse_trace` — versioned record & replay (`trace_version: 1`) |
+| `debug.py` | Stepped inspection: op listing and per-position debug analysis behind `/debug/*` |
+| `ablation.py` | Forward hooks that zero chosen heads/blocks, then re-run a real pass (`/ablate/analyze`) |
+| `reduce.py` | PCA / dimensionality reduction for the 3D projections |
+| `schemas.py` | Pydantic request/response models, including the `logit_lens` payload |
+
+### Frontend structure
+
+`AppShell` is a **docked shell**, not a canvas with floating overlays:
+
+```
+grid-template-areas: "top top top" "side canvas right" "bot bot bot";
+grid-template-columns: 300px 1fr 360px;
+```
+
+- **top** — `TopBar`: mode tabs, model stats (the single authoritative home for
+  them), Grid/3D toggle, light-mode toggle, share button.
+- **side** — `Sidebar`: `DemoData`, `ModelLoader`, `CheckpointLoader`,
+  `ComparePanel`, `ArchitecturePanel`, `TopologyView`, `ModelInfoPane`,
+  `TensorList`.
+- **canvas** — `SceneLoader` → `Scene` → one of `TensorCloud`,
+  `GenerationScene`, `WalkthroughScene`; `KvCacheVolume` and `TransformerStack`
+  are shared sub-scenes.
+- **right** — `RightPanel`: op card + formula, and the permanently-embedded
+  `LogitLensPanel`.
+- **bot** — `BottomBar`: transport, scrubber, phase/KV readout, token strip, LOD
+  toggle.
+
+Engineer tools live behind `devMode` in the store, or inline in the **Debugger**
+mode dashboard (`DebuggerPane`): `BreakpointGutter`, `FlameGraph`,
+`AnomalySentinels`, `WatchPanel`, `LayerTable`, `HeadGrid`, `HeadInspector`,
+`DebugInspector`, `NumberProvenance`, `ReplayBranch`, `ConsoleRepl`,
+`AblationPanel`, `ConfigDiff`, `DataExport`, plus the depth panels
+(`QuantExplainer`, `LoraDeltaViz`, `InductionHeadLab`, `SamplingPlayground`,
+`WhyExplainer`, `ResidualContributions`, `DepthDial`).
+
+Shared frontend logic: `lib/sceneColors.ts` (component-class hues),
+`lib/useKeyboard.ts` (Space/F10/F11/J/K/B), `lib/useSnapshotUrl.ts`,
+`lib/prompts.ts` (multilingual tokenization presets), `lib/gguf/dequant.ts`
+(scoped, on-demand tensor dequantization).
+
+### Scene correctness
+
+The geometry encodes architecture, not decoration. The residual stream is a
+continuous spine; attention and MLP are **branches** that read a normalized copy
+and add their delta back at visible merge nodes. RMSNorm is a rescaling collar
+(896 → 896 — magnitude changes, width does not), SwiGLU shows twin
+`gate_proj`/`up_proj` prongs meeting at an element-wise multiply, RoPE is a
+helical twist on Q/K, and the KV cache is a spatial object that grows through
+pre-fill and decode. See [visual-mapping.md](visual-mapping.md).

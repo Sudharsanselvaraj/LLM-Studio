@@ -53,13 +53,14 @@ Open **http://localhost:3000** and pick a mode from the top bar. No model file i
 for the live-model view; drag any local `.gguf` onto the drop zone to inspect it instead
 (the file is parsed in-browser — nothing is uploaded).
 
-## The three modes
+## The four modes
 
 | Mode | What it shows | Where the data comes from |
 | ---- | ------------- | ------------------------- |
-| **Architecture** | A 3D point cloud of every real tensor (layers as depth-colored panels), a searchable tensor list with hover/click inspection, and a real-data **model overview card** (params, layers, attn/KV heads, hidden, FFN, vocab, context) shown until a tensor is selected. | `GET /architecture` (live Qwen `named_parameters()`) **or** a client-side `.gguf` binary parser. |
+| **Architecture** | A 3D point cloud of every real tensor (layers as depth-colored panels), a searchable tensor list with hover/click inspection, and a real-data **model overview card** (params, layers, attn/KV heads, hidden, FFN, vocab, context) shown until a tensor is selected. Also a **2D tile grid** (tensors grouped by role, searchable), an SVG **topology view**, a **model info pane**, and a **quantization compare** panel that dequantizes a selected tensor from two GGUFs and diffs the real value distributions. | `GET /architecture` (live Qwen `named_parameters()`) **or** a client-side `.gguf` binary parser + `lib/gguf/dequant.ts`. |
 | **Generation** | A real greedy generation streamed over WebSocket that **autoplays** token-by-token, layer-by-layer. The stack renders **distinctive per-operation geometry** — one blade per real attention head (clustered into KV groups for GQA), a SwiGLU funnel sized by the real FFN ratio, and RMSNorm waists — with a follow-mode camera, speed multiplier, skip-to-layer/token, and a live **pre-fill vs decode** KV-cache readout. The right panel shows the architecture-correct LaTeX formula, param count, weight preview, and optional raw dev values; a real **top-k probability skyline** sits at the output. | `WS /ws/generate` with `trace:true` — a real per-op catalog + per-token top-k, phase, and per-layer activation stats. |
-| **Walkthrough** | A chaptered explanation (Overview → Tokenization → Embedding → Layer Norm → Self-Attention → MLP → Softmax) that **autoplays chapters**, advancing the 3D view in lockstep with eased camera moves. Structural chapters reuse the real Qwen block geometry; the tokenizer/embedding/attention chapters show real per-token PCA and attention data. Every worked number is read from a forward pass. | One real `POST /analyze` (attention + PCA geometry). |
+| **Walkthrough** | A chaptered explanation (Overview → Tokenization → Embedding → RMSNorm → Self-Attention → MLP → Softmax) that **autoplays chapters**, advancing the 3D view in lockstep with eased camera moves. Chapters are **gated on real data** — they render a spinner with elapsed time rather than placeholder text. Includes the **logit lens** (what the model would predict at every layer), a **prediction game** on the real top-k, and curated multilingual prompts (Tamil, Hindi, Chinese, emoji) that make byte-fallback tokenization visible. | One real `POST /analyze` (attention + PCA geometry + per-layer logit lens). |
+| **Debugger** | A tiled engineer dashboard: **breakpoints** that halt autoplay at a chosen op, a **flame graph** over the real op catalog, **anomaly sentinels** (z-score outliers in per-layer activation), **watch expressions**, a sortable **layer table**, a **head grid** (head×head attention similarity), **ablation** with a real before→after logit-lens diff, **induction-head lab**, **trace replay/branching**, and raw **`.npz`/`.csv` export**. | `POST /debug/analyze`, `POST /ablate/analyze`, `GET /debug/ops`, and the recorded trace. |
 
 Formulas are **architecture-aware**: the family is detected from the model, so Qwen/Llama
 render **RMSNorm · RoPE · SwiGLU · GQA** and GPT-2-style models render **LayerNorm · learned
@@ -78,16 +79,32 @@ to a readable message rather than a broken canvas.
 ## Architecture
 
 - **Backend** (`backend/`) — FastAPI. `GET /architecture` (real tensors + config, no forward
-  pass), `POST /analyze` (real attention + PCA geometry), `WS /ws/generate` (streamed greedy
-  generation; `trace:true` adds the real per-op catalog). Loads `Qwen/Qwen2.5-0.5B-Instruct`
-  once on Apple **MPS** (`attn_implementation="eager"`, float32 — eager is mandatory for real
-  attention data).
-- **Frontend** (`frontend/`) — Next.js (app-router, TS) + React Three Fiber. `AppShell` =
-  top bar + left sidebar + full-bleed canvas + right panel. `lib/gguf/` client-side GGUF
-  parser; `lib/formulas.ts` KaTeX formula sets; `lib/pointcloud.ts` tensor→points;
-  `lib/playback.ts` (layer/op mapping + KV phase); `components/PlaybackEngine.tsx` (the single
-  autoplay ticker); `components/scenes/TransformerStack.tsx` (data-driven block geometry);
-  `SceneLoader.tsx` (WebGL context-loss recovery + fallback); scenes under `components/scenes/`.
+  pass), `POST /analyze` (real attention + PCA geometry + per-layer logit lens),
+  `WS /ws/generate` (streamed greedy generation; `trace:true` adds the real per-op catalog,
+  `record_trace:true` tees the stream into a downloadable trace), `GET /trace` +
+  `POST /trace/replay` (record & replay), `GET /debug/ops` + `POST /debug/analyze`
+  (stepped inspection), `POST /ablate/analyze` (zero heads/layers and re-run). Modules:
+  `model.py`, `trace.py`, `debug.py`, `ablation.py`, `reduce.py`, `schemas.py`. Loads
+  `Qwen/Qwen2.5-0.5B-Instruct` once on Apple **MPS** (`attn_implementation="eager"`, float32 —
+  eager is mandatory for real attention data).
+- **Frontend** (`frontend/`) — Next.js (app-router, TS) + React Three Fiber. `AppShell` is a
+  **docked shell** (CSS grid: `"top top top" / "side canvas right" / "bot bot bot"`) — no
+  floating overlays. `lib/gguf/` client-side GGUF parser + `dequant.ts`;
+  `lib/formulas.ts` KaTeX formula sets; `lib/pointcloud.ts` tensor→points;
+  `lib/playback.ts` (layer/op mapping + KV phase); `lib/sceneColors.ts` (component-class
+  colors); `lib/useKeyboard.ts` (Space / F10 / F11 / J / K / B); `lib/useSnapshotUrl.ts`
+  (shareable moment URLs); `lib/prompts.ts` (multilingual tokenization presets);
+  `components/PlaybackEngine.tsx` (the single autoplay ticker, gated on data readiness);
+  `SceneLoader.tsx` (WebGL context-loss recovery + fallback); scenes under
+  `components/scenes/` (`TransformerStack`, `GenerationScene`, `WalkthroughScene`,
+  `TensorCloud`, `KvCacheVolume`).
+
+**The geometry is architecturally honest.** The residual stream renders as a continuous spine
+with attention and MLP as **branches** that read a normalized copy and add their delta back at
+visible merge nodes — not as sequential stations on a pipe. RMSNorm is a rescaling collar (896
+→ 896, magnitude changes, width doesn't), SwiGLU shows its twin `gate_proj`/`up_proj` prongs
+meeting at an element-wise multiply, RoPE appears as a helical twist on Q/K, and the KV cache
+is a real spatial object that grows through pre-fill and decode.
 
 > [!NOTE]
 > The point cloud uses `THREE.Points` (one draw call), not instanced meshes — the right tool
@@ -108,6 +125,12 @@ TokenPrint's whole claim is that **every number is real**. It's checked, not ass
   **630M**.
 - **`backend/scripts/verify_real_data.py`** / **`verify_geometry.py`** — attention and PCA
   geometry match an independent forward pass; deterministic across runs.
+- **`frontend/scripts/verify-data.sh`** — a **build-time guard**: `npm run build` fails if
+  `Math.random` appears anywhere in application code (`components/`, `lib/`, `app/`), with a
+  narrow allowlist for genuine visual jitter (point-cloud scale, layout). The "no fabricated
+  numbers" rule is enforced mechanically, not by reviewer discipline.
+- **`scripts/trace_diff.py`** — CI regression gate: diffs two recorded traces with a
+  `--tolerance` and `--fail-on-diff`, comparing tokens, probabilities, and layer stats.
 
 See [`docs/verification.md`](docs/verification.md) for the full evidence with exact numbers.
 
@@ -127,25 +150,36 @@ See [`docs/verification.md`](docs/verification.md) for the full evidence with ex
 
 ## Roadmap
 
-TokenPrint is becoming an **interactive visual debugger for transformer execution** —
-the tool that answers *"what is my model doing right now, and why?"*. The full plan,
-including an analysis of the gaps in today's visualizer ecosystem and why each
-milestone is sequenced the way it is, lives in [ROADMAP.md](ROADMAP.md). Short version:
+TokenPrint is an **interactive visual debugger for transformer execution** — the tool that
+answers *"what is my model doing right now, and why?"*. The full plan, including an analysis
+of the gaps in today's visualizer ecosystem, lives in [ROADMAP.md](ROADMAP.md); the phased
+design/engineering audit is in [docs/design-review.md](docs/design-review.md).
 
-1. **v0.2 — Record & replay**: save any real generation as a shareable trace file; a
-   hosted demo replays real traces with zero install.
-2. **v0.3 — Logit lens**: watch the prediction form layer by layer, on your prompt.
-3. **v0.4 — Debugger**: layer breakpoints, pause-and-inspect tensors, per-head
-   attention heatmaps.
-4. **v0.5 — Interventions**: ablate a head, re-run, diff the traces.
+**Shipped** — record & replay traces + snapshot URLs, quantization diff on two GGUFs, logit
+lens, breakpoint debugger, raw-component ablation with before→after diffs, local checkpoint
+loading, multilingual tokenization, and the honest-geometry scene rebuild.
+
+**Next** — real per-layer timings, true activation patching, cross-quant trace diffing, then
+MoE routing, in-browser WebGPU inference, and real quantized GGUF execution.
 
 ## Honest limitations
 
-- The tensor point cloud needs only shapes/offsets/types, so the GGUF parser never
-  dequantizes. **Value preview** is offered for F32/F16 tensors; quantized tensors are
-  labeled "needs dequantization" rather than faked.
+We would rather under-claim than overstate. Known gaps, stated plainly:
+
+- **Generation runs on full-precision PyTorch weights, not quantized GGUF.** The GGUF parser
+  reads real structure and metadata, and `dequant.ts` decodes real values for the quantization
+  compare view — but inference itself never executes a quantized model. Closing this needs a
+  llama.cpp integration.
 - The **live-generation model is Qwen** (real, loaded); GPT-2's formula set is wired and
-  selected by architecture but not run locally (no local GPT-2).
+  selected by architecture but not run locally.
+- **`TimingReadout` does not report real time.** It currently derives a proxy from PCA-space
+  hidden-state magnitudes and labels it in milliseconds — this is a known bug
+  ([#18](https://github.com/Sudharsanselvaraj/Token-Print/issues/18)), not a measurement.
+- **`ActivationPatchCompare` shows a logit-lens trajectory, not activation patching.** The
+  numbers are real; the panel title overstates the method
+  ([#75](https://github.com/Sudharsanselvaraj/Token-Print/issues/75)).
+- `ResidualContributions` measures total residual change per layer in **PCA space**, not the
+  attention-vs-MLP decomposition (that needs per-sub-block forward hooks).
 - The walkthrough's **model-scale selector** rescales the 3D using each reference model's real
   published parameter count; all worked numbers come from the loaded Qwen forward pass.
 

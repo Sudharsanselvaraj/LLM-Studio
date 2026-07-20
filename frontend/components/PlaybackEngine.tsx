@@ -62,6 +62,7 @@ export default function PlaybackEngine() {
 
   // Generation (with op_catalog): advance one layer per tick; roll to the next
   // token's forward pass at the end of the stack; stop at the end of the trace.
+  // Pause on breakpoints before advancing to a new op.
   useEffect(() => {
     if (mode !== "generation" || !opPlaying) return;
     const id = setInterval(() => {
@@ -70,15 +71,26 @@ export default function PlaybackEngine() {
       if (cat.length === 0) return;
       const anchors = layerAnchors(cat, s.genMeta?.num_layers ?? 0);
       const pos = anchorPosFor(anchors, s.opIndex);
+      let nextOp: number | null = null;
 
       if (pos < anchors.length - 1) {
-        useStore.setState({ opIndex: anchors[pos + 1] });
+        nextOp = anchors[pos + 1];
+      } else if (s.playIndex < s.genFrames.length - 1) {
+        nextOp = 0; // will roll playIndex too
+      }
+
+      if (nextOp != null && s.breakpoints.has(nextOp)) {
+        useStore.setState({ opPlaying: false });
+        return;
+      }
+
+      if (pos < anchors.length - 1) {
+        useStore.setState({ opIndex: nextOp! });
       } else if (s.playIndex < s.genFrames.length - 1) {
         useStore.setState({ playIndex: s.playIndex + 1, opIndex: 0 });
       } else if (s.genStatus !== "streaming") {
         useStore.setState({ opPlaying: false }); // end of trace
       }
-      // else: streaming and caught up — hold here until more frames arrive.
     }, Math.max(60, GEN_LAYER_MS / playSpeed));
     return () => clearInterval(id);
   }, [mode, opPlaying, playSpeed]);

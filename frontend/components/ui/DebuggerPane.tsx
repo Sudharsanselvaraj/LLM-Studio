@@ -9,6 +9,24 @@ import DistributionPanel from "./DistributionPanel";
 import ConfigDiff from "./ConfigDiff";
 import DataExport from "./DataExport";
 import AblationPanel from "./AblationPanel";
+import BreakpointGutter from "./BreakpointGutter";
+import FlameGraph from "./FlameGraph";
+import LayerTable from "./LayerTable";
+import HeadGrid from "./HeadGrid";
+import AnomalySentinels from "./AnomalySentinels";
+import WatchPanel from "./WatchPanel";
+import NumberProvenance from "./NumberProvenance";
+import ConsoleRepl from "./ConsoleRepl";
+import ReplayBranch from "./ReplayBranch";
+import QuantExplainer from "./QuantExplainer";
+import LoraDeltaViz from "./LoraDeltaViz";
+import InductionHeadLab from "./InductionHeadLab";
+import ActivationPatchCompare from "./ActivationPatchCompare";
+import ResidualContributions from "./ResidualContributions";
+import SamplingPlayground from "./SamplingPlayground";
+import WhyExplainer from "./WhyExplainer";
+import DepthDial from "./DepthDial";
+import Gpt2Loader from "./Gpt2Loader";
 
 /**
  * Phase 2: Dedicated debugger mode — a dashboard of all dev tools
@@ -46,6 +64,51 @@ export default function DebuggerPane() {
         </div>
 
         <div className="dbg-card">
+          <div className="dbg-card-title">Breakpoints</div>
+          <BreakpointGutter />
+        </div>
+
+        <div className="dbg-card">
+          <div className="dbg-card-title">Flame Graph</div>
+          <FlameGraph />
+        </div>
+
+        <div className="dbg-card">
+          <div className="dbg-card-title">Layer Metrics</div>
+          <LayerTable />
+        </div>
+
+        <div className="dbg-card">
+          <div className="dbg-card-title">Head × Head Grid</div>
+          <HeadGrid />
+        </div>
+
+        <div className="dbg-card dbg-card-wide">
+          <div className="dbg-card-title">Anomaly Sentinels</div>
+          <AnomalySentinels />
+        </div>
+
+        <div className="dbg-card">
+          <div className="dbg-card-title">Watch Expressions</div>
+          <WatchPanel />
+        </div>
+
+        <div className="dbg-card">
+          <div className="dbg-card-title">Number Provenance</div>
+          <NumberProvenance />
+        </div>
+
+        <div className="dbg-card">
+          <div className="dbg-card-title">Replay Branching</div>
+          <ReplayBranch />
+        </div>
+
+        <div className="dbg-card dbg-card-wide">
+          <div className="dbg-card-title">Console REPL</div>
+          <ConsoleRepl />
+        </div>
+
+        <div className="dbg-card">
           <div className="dbg-card-title">Attention Heads</div>
           <HeadInspector />
         </div>
@@ -61,8 +124,53 @@ export default function DebuggerPane() {
         </div>
 
         <div className="dbg-card">
-          <div className="dbg-card-title">Config Diff</div>
-          <ConfigDiff />
+          <div className="dbg-card-title">Console REPL</div>
+          <ConsoleRepl />
+        </div>
+
+        <div className="dbg-card">
+          <div className="dbg-card-title">Quant Explainer</div>
+          <QuantExplainer />
+        </div>
+
+        <div className="dbg-card">
+          <div className="dbg-card-title">LoRA Delta</div>
+          <LoraDeltaViz />
+        </div>
+
+        <div className="dbg-card">
+          <div className="dbg-card-title">Induction-Head Lab</div>
+          <InductionHeadLab />
+        </div>
+
+        <div className="dbg-card">
+          <div className="dbg-card-title">Activation Patching</div>
+          <ActivationPatchCompare />
+        </div>
+
+        <div className="dbg-card">
+          <div className="dbg-card-title">Residual Contributions</div>
+          <ResidualContributions />
+        </div>
+
+        <div className="dbg-card">
+          <div className="dbg-card-title">Sampling Playground</div>
+          <SamplingPlayground />
+        </div>
+
+        <div className="dbg-card dbg-card-wide">
+          <div className="dbg-card-title">Why This Token?</div>
+          <WhyExplainer />
+        </div>
+
+        <div className="dbg-card">
+          <div className="dbg-card-title">Depth Dial</div>
+          <DepthDial />
+        </div>
+
+        <div className="dbg-card">
+          <div className="dbg-card-title">Local Checkpoint</div>
+          <Gpt2Loader />
         </div>
 
         <div className="dbg-card">

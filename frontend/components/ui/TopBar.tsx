@@ -21,6 +21,8 @@ export default function TopBar() {
   const { share } = useSnapshotUrl();
   const tileView = useStore((s) => s.tileView);
   const setTileView = useStore((s) => s.setTileView);
+  const lightMode = useStore((s) => s.lightMode);
+  const toggleLightMode = useStore((s) => s.toggleLightMode);
 
   const [copied, setCopied] = useState(false);
   const handleShare = () => {
@@ -86,6 +88,13 @@ export default function TopBar() {
               {tileView ? "3D" : "Grid"}
             </button>
           )}
+          <button
+            className="chip-btn"
+            onClick={toggleLightMode}
+            title="Toggle light/dark mode"
+          >
+            {lightMode ? "🌙" : "☀️"}
+          </button>
         </div>
     </div>
   );

@@ -129,6 +129,31 @@ interface NeuroState {
   skipToNextLayer: () => void;
   skipToNextToken: () => void;
 
+  // Phase 4 — Light mode / a11y / depth dial.
+  lightMode: boolean;
+  toggleLightMode: () => void;
+
+  // Phase 3 – Debugger internals.
+  breakpoints: Set<number>; // op indices where autoplay pauses
+  toggleBreakpoint: (opIndex: number) => void;
+  // Semantic LOD threshold (0=all, 1=hide stat<0.05, 2=hide stat<0.15)
+  lodLevel: number;
+  setLodLevel: (n: number) => void;
+  // Watch expressions: label -> JS expression string
+  watches: { label: string; expr: string; value: unknown }[];
+  addWatch: (label: string, expr: string) => void;
+  removeWatch: (label: string) => void;
+  evalWatches: () => void;
+  // Anomaly sentinel scores: per-layer entropy/stat deviation flags
+  sentinelScores: { layer: number; score: number; reason: string }[];
+  computeSentinels: () => void;
+  // Number provenance trail: [opIndex, tensorName, slice] per step
+  provenanceTrail: { opIndex: number; tensor: string; slice: string }[];
+  setProvenanceTrail: (trail: { opIndex: number; tensor: string; slice: string }[]) => void;
+  // Source mapping: which tensor name is currently source-selected
+  sourceSelectedTensor: string | null;
+  setSourceSelectedTensor: (name: string | null) => void;
+
   // Optional overlays (off/neutral by default where the addendum asks).
   showEquations: boolean; // per-layer LaTeX (kept on: it's the spec's teaching content)
   devMode: boolean; // raw sampled tensor values + indices for the active op
@@ -387,6 +412,61 @@ export const useStore = create<NeuroState>((set) => ({
   view2D: false,
   playSpeed: 0.5,
   autoStarted: false,
+
+  // Phase 3 – Debugger internals
+  breakpoints: new Set<number>(),
+  toggleBreakpoint: (opIdx) =>
+    set((s) => {
+      const bp = new Set(s.breakpoints);
+      if (bp.has(opIdx)) bp.delete(opIdx); else bp.add(opIdx);
+      return { breakpoints: bp, opPlaying: false };
+    }),
+  lodLevel: 0,
+  setLodLevel: (n) => set({ lodLevel: Math.max(0, Math.min(n, 2)) }),
+  watches: [],
+  addWatch: (label, expr) =>
+    set((s) => ({ watches: [...s.watches, { label, expr, value: undefined }] })),
+  removeWatch: (label) =>
+    set((s) => ({ watches: s.watches.filter((w) => w.label !== label) })),
+  evalWatches: () =>
+    set((s) => ({
+      watches: s.watches.map((w) => {
+        try {
+          const val = new Function("store", `with(store) { return (${w.expr}); }`)(s);
+          return { ...w, value: val };
+        } catch { return { ...w, value: "‹error›" }; }
+      }),
+    })),
+  sentinelScores: [],
+  computeSentinels: () =>
+    set((s) => {
+      const frames = s.genFrames;
+      if (!frames.length) return {};
+      const nLayers = s.genMeta?.num_layers ?? 0;
+      const perLayer: number[][] = Array.from({ length: nLayers }, () => []);
+      for (const f of frames) {
+        for (let l = 0; l < nLayers && l < f.layer_stats.length; l++) {
+          perLayer[l].push(f.layer_stats[l]);
+        }
+      }
+      const scores: { layer: number; score: number; reason: string }[] = [];
+      for (let l = 0; l < nLayers; l++) {
+        const vals = perLayer[l];
+        if (vals.length < 3) continue;
+        const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+        const std = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length);
+        if (std < 1e-8) continue;
+        const last = vals[vals.length - 1];
+        const z = Math.abs((last - mean) / std);
+        if (z > 2.5) scores.push({ layer: l, score: z * 10, reason: `z=${z.toFixed(1)}` });
+      }
+      return { sentinelScores: scores.sort((a, b) => b.score - a.score).slice(0, 10) };
+    }),
+  provenanceTrail: [],
+  setProvenanceTrail: (trail: { opIndex: number; tensor: string; slice: string }[]) => set({ provenanceTrail: trail }),
+  sourceSelectedTensor: null,
+  setSourceSelectedTensor: (name) => set({ sourceSelectedTensor: name }),
+
   setOpIndex: (i) =>
     set((s) => {
       const n = s.genMeta?.op_catalog?.length ?? 0;
@@ -415,6 +495,9 @@ export const useStore = create<NeuroState>((set) => ({
         playIndex: rewind ? 0 : s.playIndex,
       };
     }),
+  lightMode: false,
+  toggleLightMode: () => set((s) => ({ lightMode: !s.lightMode })),
+
   toggleFollow: () => set((s) => ({ followMode: !s.followMode })),
   toggleView2D: () => set((s) => ({ view2D: !s.view2D })),
   setPlaySpeed: (n) => set({ playSpeed: Math.max(0.25, Math.min(n, 4)) }),

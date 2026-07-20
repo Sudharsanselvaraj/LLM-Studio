@@ -37,6 +37,8 @@ function GenBottomBar() {
   const traceSource = useStore((s) => s.traceSource);
   const downloadTrace = useStore((s) => s.downloadTrace);
   const hasCatalog = useStore((s) => (s.genMeta?.op_catalog?.length ?? 0) > 0);
+  const lodLevel = useStore((s) => s.lodLevel);
+  const setLodLevel = useStore((s) => s.setLodLevel);
 
   const frame = playIndex >= 0 ? frames[playIndex] : null;
   const promptLen = meta?.prompt_len ?? 0;
@@ -85,6 +87,15 @@ function GenBottomBar() {
         )}
 
         <div className="bb-spacer" />
+
+        <div className="lod-toggle">
+          LOD
+          {[0, 1, 2].map((n) => (
+            <button key={n} className={lodLevel === n ? "on" : ""} onClick={() => setLodLevel(n)}>
+              {["all", "mid", "low"][n]}
+            </button>
+          ))}
+        </div>
 
         <button
           className={"chip-btn" + (followMode ? " on" : "")}

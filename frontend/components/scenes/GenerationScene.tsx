@@ -28,6 +28,8 @@ export default function GenerationScene() {
   const frame = useStore((s) => (s.playIndex >= 0 ? s.genFrames[s.playIndex] : null));
   const [hoveredLayer, setHoveredLayer] = useState<number | null>(null);
   const [hoveredKind, setHoveredKind] = useState<OpKind | null>(null);
+  const sourceSelectedTensor = useStore((s) => s.sourceSelectedTensor);
+  const setSourceSelectedTensor = useStore((s) => s.setSourceSelectedTensor);
 
   const nLayers = meta?.num_layers ?? 24;
   const catalog = meta?.op_catalog ?? [];
@@ -257,6 +259,15 @@ export default function GenerationScene() {
             </Text>
           </Billboard>
         </group>
+      )}
+
+      {/* Source-mapped tensor highlight. */}
+      {sourceSelectedTensor && (
+        <Billboard position={[-8, -(nLayers + 0.5) * GAP, 0]}>
+          <Text fontSize={0.32} anchorX="left" color="#8cf" outlineWidth={0.015} outlineColor="#000000">
+            Source: {sourceSelectedTensor}
+          </Text>
+        </Billboard>
       )}
 
       {/* Which generated token this forward pass produces. */}

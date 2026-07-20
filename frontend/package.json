@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run verify-data && next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "verify-data": "bash scripts/verify-data.sh"
   },
   "dependencies": {
     "@react-three/drei": "^10.0.0",
